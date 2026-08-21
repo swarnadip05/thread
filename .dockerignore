@@ -1,0 +1,16 @@
+.git
+.next
+.turbo
+node_modules
+dist
+coverage
+playwright-report
+test-results
+*.log
+.env
+.env.*
+docs
+e2e
+pictures
+apps/web/.next
+apps/web/public

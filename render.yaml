@@ -1,0 +1,133 @@
+services:
+  - type: web
+    name: thread-api
+    runtime: docker
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: .
+    autoDeployTrigger: off
+    healthCheckPath: /health/ready
+    maxShutdownDelaySeconds: 30
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: LOG_LEVEL
+        value: info
+      - key: TRUST_PROXY_HOPS
+        value: "1"
+      - key: SOCKET_REDIS_ADAPTER_ENABLED
+        value: "true"
+      - key: EMAIL_PROVIDER
+        value: smtp
+      - key: SMTP_SECURE
+        value: "true"
+      - key: PAYMENT_PROVIDER
+        value: razorpay
+      - key: RAZORPAY_MODE
+        value: live
+      - key: PHONE_AUTH_ENABLED
+        value: "false"
+      - key: TOTP_ENABLED
+        value: "false"
+      - key: WEB_ORIGIN
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: MONGODB_URI
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM
+        sync: false
+      - key: RAZORPAY_LIVE_KEY_ID
+        sync: false
+      - key: RAZORPAY_LIVE_KEY_SECRET
+        sync: false
+      - key: RAZORPAY_LIVE_WEBHOOK_SECRET
+        sync: false
+      - key: ACCESS_TOKEN_SECRET
+        sync: false
+      - key: PRODUCT_PREVIEW_SECRET
+        sync: false
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: CLOUDINARY_PRODUCT_FOLDER
+        sync: false
+
+  - type: worker
+    name: thread-worker
+    runtime: docker
+    dockerfilePath: ./apps/api/Dockerfile.worker
+    dockerContext: .
+    autoDeployTrigger: off
+    maxShutdownDelaySeconds: 30
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: LOG_LEVEL
+        value: info
+      - key: TRUST_PROXY_HOPS
+        value: "0"
+      - key: SOCKET_REDIS_ADAPTER_ENABLED
+        value: "true"
+      - key: EMAIL_PROVIDER
+        value: smtp
+      - key: SMTP_SECURE
+        value: "true"
+      - key: PAYMENT_PROVIDER
+        value: razorpay
+      - key: RAZORPAY_MODE
+        value: live
+      - key: PHONE_AUTH_ENABLED
+        value: "false"
+      - key: TOTP_ENABLED
+        value: "false"
+      - key: WEB_ORIGIN
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: MONGODB_URI
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM
+        sync: false
+      - key: RAZORPAY_LIVE_KEY_ID
+        sync: false
+      - key: RAZORPAY_LIVE_KEY_SECRET
+        sync: false
+      - key: RAZORPAY_LIVE_WEBHOOK_SECRET
+        sync: false
+      - key: ACCESS_TOKEN_SECRET
+        sync: false
+      - key: PRODUCT_PREVIEW_SECRET
+        sync: false
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: CLOUDINARY_PRODUCT_FOLDER
+        sync: false

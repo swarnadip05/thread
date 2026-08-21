@@ -1,0 +1,62 @@
+name: thread-commerce
+
+services:
+  mongo:
+    image: mongo:8.0.16
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all", "--port", "27017"]
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  mongo-init:
+    image: mongo:8.0.16
+    depends_on:
+      mongo:
+        condition: service_healthy
+    environment:
+      MONGO_HOST: mongo
+      MONGO_PORT: "27017"
+      MONGO_REPLICA_SET: rs0
+    entrypoint: ["bash", "/workspace/scripts/init-mongo-replica.sh"]
+    restart: "no"
+    volumes:
+      - ./scripts/init-mongo-replica.sh:/workspace/scripts/init-mongo-replica.sh:ro
+
+  redis:
+    image: redis:8.2.1-alpine
+    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1"]
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  mongo-express:
+    image: mongo-express:1.0.2-20-alpine3.19
+    profiles: ["development"]
+    depends_on:
+      mongo-init:
+        condition: service_completed_successfully
+    environment:
+      ME_CONFIG_MONGODB_URL: mongodb://mongo:27017/?directConnection=true
+      ME_CONFIG_BASICAUTH_ENABLED: "false"
+    ports:
+      - "127.0.0.1:8081:8081"
+    restart: unless-stopped
+
+volumes:
+  mongo-data:
+  redis-data:

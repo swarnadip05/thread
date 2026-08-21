@@ -1,0 +1,19 @@
+packages:
+  - apps/*
+  - packages/*
+
+overrides:
+  brace-expansion: 5.0.8
+  postcss: 8.5.23
+  sharp: 0.35.3
+
+patchedDependencies:
+  minimatch@3.1.5: patches/minimatch@3.1.5.patch
+
+allowBuilds:
+  argon2: true
+  esbuild: true
+  # Optional native acceleration; BullMQ works with msgpackr's JavaScript fallback.
+  msgpackr-extract: false
+  sharp: true
+  unrs-resolver: true

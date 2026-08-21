@@ -1,0 +1,48 @@
+name: Preview smoke test
+
+on:
+  workflow_dispatch:
+    inputs:
+      preview_url:
+        description: HTTPS Vercel preview URL to verify
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: preview-smoke-${{ inputs.preview_url }}
+  cancel-in-progress: true
+
+jobs:
+  playwright:
+    name: Playwright against approved preview
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: staging
+    env:
+      PREVIEW_URL: ${{ inputs.preview_url }}
+      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.15.0
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Run preview smoke test
+        run: pnpm exec playwright test --config playwright.preview.config.ts
+      - name: Upload report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: preview-playwright-report
+          path: playwright-report/
+          retention-days: 7

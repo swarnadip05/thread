@@ -1,0 +1,17 @@
+title = "THREAD secret scanning"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Generated and dependency files do not contain application-owned secrets."
+paths = [
+  '''pnpm-lock\.yaml''',
+  '''apps/web/src/content/generated-asset-manifest\.ts''',
+]
+
+[[rules]]
+id = "thread-provider-secret"
+description = "THREAD provider or token secret assigned in source"
+regex = '''(?i)(razorpay|cloudinary|refresh|access|webhook|preview)[_-]?(secret|token)\s*[:=]\s*["'][^"']{16,}["']'''
+keywords = ["secret", "token"]

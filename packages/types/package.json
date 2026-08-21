@@ -1,0 +1,26 @@
+{
+  "name": "@thread/types",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "lint": "eslint src",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@thread/config": "workspace:*",
+    "@types/node": "26.1.1",
+    "eslint": "9.39.5",
+    "typescript": "6.0.3"
+  }
+}

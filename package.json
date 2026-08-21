@@ -1,0 +1,37 @@
+{
+  "name": "thread-commerce",
+  "private": true,
+  "type": "module",
+  "version": "0.0.0",
+  "packageManager": "pnpm@11.15.0",
+  "engines": {
+    "node": ">=24.18.0 <25",
+    "pnpm": ">=11.15.0 <12"
+  },
+  "scripts": {
+    "assets:prepare": "tsx scripts/prepare-client-assets.ts && tsx scripts/build-asset-manifest.ts",
+    "assets:audit": "tsx scripts/build-asset-manifest.ts",
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "eslint scripts e2e playwright*.config.ts && turbo run lint",
+    "typecheck": "tsc --noEmit && turbo run typecheck",
+    "test": "turbo run test",
+    "test:e2e": "docker compose up -d mongo redis mongo-init && playwright test",
+    "test:e2e:update": "docker compose up -d mongo redis mongo-init && playwright test --update-snapshots",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "audit": "pnpm audit --audit-level high",
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build"
+  },
+  "devDependencies": {
+    "@thread/config": "workspace:*",
+    "@axe-core/playwright": "4.12.1",
+    "@playwright/test": "1.62.0",
+    "@types/node": "26.1.1",
+    "eslint": "9.39.5",
+    "prettier": "3.9.5",
+    "turbo": "2.10.5",
+    "typescript": "6.0.3",
+    "tsx": "4.23.1"
+  }
+}
