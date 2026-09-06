@@ -365,8 +365,13 @@ function customerSafeSection(section: HomepageSectionDto): HomepageSectionDto {
     return {
       ...section,
       items: section.items.map((item) =>
-        item.subtitle === "Supported payment options are shown securely at checkout."
-          ? { ...item, subtitle: "Choose from the payment methods available at checkout." }
+        item.id === "payments" || /payment|checkout/i.test(`${item.title} ${item.subtitle}`)
+          ? {
+              ...item,
+              title: "Order on WhatsApp",
+              subtitle: "Send your selected style and size directly to THREAD.",
+              icon: "headphones",
+            }
           : item,
       ),
     };

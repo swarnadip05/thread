@@ -254,9 +254,9 @@ export const fallbackHomepage: PublicHomepageDto = {
       items: [
         {
           id: "payments",
-          title: "Secure payments",
-          subtitle: "Choose from the payment methods available at checkout.",
-          icon: "card",
+          title: "Order on WhatsApp",
+          subtitle: "Send your selected style and size directly to THREAD.",
+          icon: "headphones",
         },
         {
           id: "support",
