@@ -2,9 +2,10 @@ import { randomBytes } from "node:crypto";
 
 import { defineConfig, devices } from "@playwright/test";
 
-const webOrigin = "http://127.0.0.1:3000";
-const apiOrigin = "http://127.0.0.1:4000";
-const mongodbUri = "mongodb://127.0.0.1:27017/thread_commerce_e2e?replicaSet=rs0";
+const webOrigin = process.env.E2E_WEB_ORIGIN || "http://127.0.0.1:3000";
+const apiOrigin = process.env.E2E_API_ORIGIN || "http://127.0.0.1:4000";
+const mongodbUri =
+  process.env.E2E_MONGODB_URI || "mongodb://127.0.0.1:27017/thread_commerce_e2e?replicaSet=rs0";
 
 process.env.E2E_WEB_ORIGIN = webOrigin;
 process.env.E2E_API_ORIGIN = apiOrigin;
@@ -24,9 +25,9 @@ const apiEnvironment = {
   MONGODB_URI: mongodbUri,
   NODE_ENV: "test",
   PAYMENT_PROVIDER: "mock",
-  PORT: "4000",
+  PORT: new URL(apiOrigin).port,
   PRODUCT_PREVIEW_SECRET: process.env.E2E_PRODUCT_PREVIEW_SECRET,
-  REDIS_URL: "redis://127.0.0.1:6379",
+  REDIS_URL: process.env.E2E_REDIS_URL || "redis://127.0.0.1:6379",
   SOCKET_REDIS_ADAPTER_ENABLED: "false",
   WEB_ORIGIN: webOrigin,
 };
@@ -44,7 +45,10 @@ export default defineConfig({
     baseURL: webOrigin,
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
-    video: "retain-on-failure",
+    ...(process.env.E2E_BROWSER_EXECUTABLE
+      ? { launchOptions: { executablePath: process.env.E2E_BROWSER_EXECUTABLE } }
+      : {}),
+    video: process.env.E2E_BROWSER_EXECUTABLE ? "off" : "retain-on-failure",
   },
   expect: {
     toHaveScreenshot: {
@@ -68,17 +72,19 @@ export default defineConfig({
     {
       command: "pnpm --filter @thread/api dev",
       env: apiEnvironment,
-      reuseExistingServer: false,
+      reuseExistingServer: process.env.E2E_REUSE_SERVERS === "true",
       timeout: 120_000,
       url: `${apiOrigin}/health/ready`,
     },
     {
-      command: "pnpm --filter @thread/web dev",
+      command: `pnpm --filter @thread/web exec next dev --port ${new URL(webOrigin).port}`,
       env: {
+        E2E_NEXT_DIST_DIR: ".next-e2e",
+        NEXT_PUBLIC_SOCKET_URL: apiOrigin,
         NEXT_PUBLIC_API_URL: apiOrigin,
         NEXT_PUBLIC_SITE_URL: webOrigin,
       },
-      reuseExistingServer: false,
+      reuseExistingServer: process.env.E2E_REUSE_SERVERS === "true",
       timeout: 120_000,
       url: webOrigin,
     },

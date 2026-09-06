@@ -15,7 +15,7 @@ export default async function StorefrontPage({
       ? loadHomepageProducts("newest", newArrivalsSection.collectionSlugs)
       : Promise.resolve([]),
     bestSellersSection
-      ? loadHomepageProducts("rating", bestSellersSection.collectionSlugs)
+      ? loadHomepageProducts("best_sellers", bestSellersSection.collectionSlugs)
       : Promise.resolve([]),
   ]);
 

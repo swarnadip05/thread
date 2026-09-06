@@ -8,6 +8,7 @@ import type {
 } from "@thread/types";
 import type { CatalogueQuery, VariantInput } from "@thread/validation";
 
+import { OrderModel } from "../../checkout/models/order.model.js";
 import { CategoryModel } from "../../models/category.model.js";
 import { CollectionModel } from "../models/collection.model.js";
 import { InventoryMovementModel } from "../models/inventory-movement.model.js";
@@ -103,6 +104,7 @@ function summaryDto(product: AggregateProduct): ProductSummaryDto {
 function detailDto(product: AggregateProduct): ProductDetailDto {
   return {
     ...summaryDto(product),
+    seo: product.seo,
     descriptionHtml: product.descriptionHtml,
     care: product.care,
     tags: product.tags,
@@ -116,6 +118,23 @@ function adminDto(product: AggregateProduct): AdminProductRecord {
   return {
     ...detailDto(product),
     status: product.status,
+    featured: product.featured,
+    newArrival: product.newArrival ?? false,
+    seo: product.seo,
+    variants: product.variants.map((variant) => ({
+      ...variantDto(variant),
+      stockOnHand: variant.stockOnHand,
+      stockReserved: variant.stockReserved,
+      reorderLevel: variant.reorderLevel,
+      weightGrams: variant.weightGrams,
+      taxRateBps: variant.taxRateBps,
+      hsn: variant.hsn,
+      attributes:
+        variant.attributes instanceof Map
+          ? Object.fromEntries(variant.attributes)
+          : variant.attributes,
+      ...(variant.dimensionsMm ? { dimensionsMm: variant.dimensionsMm } : {}),
+    })),
     createdAt: product.createdAt.toISOString(),
     updatedAt: product.updatedAt.toISOString(),
   };
@@ -166,6 +185,8 @@ export class MongooseCatalogueRepository implements CatalogueRepository {
       status: "active",
       publishedAt: { $lte: new Date() },
     };
+    if (query.newArrival) productMatch.newArrival = query.newArrival === "true";
+    if (query.featured) productMatch.featured = query.featured === "true";
     if (categoryIds) productMatch.categoryIds = { $in: categoryIds };
     if (collectionIds) productMatch.collectionIds = { $in: collectionIds };
     if (query.audience?.length) productMatch.audience = { $in: query.audience };
@@ -259,18 +280,43 @@ export class MongooseCatalogueRepository implements CatalogueRepository {
 
   async listPublic(query: CatalogueQuery): Promise<PageResult<ProductSummaryDto>> {
     const stages = await this.publicStages(query);
+    if (query.bestSellers === "true")
+      stages.push(
+        {
+          $lookup: {
+            from: OrderModel.collection.name,
+            let: { productId: "$_id" },
+            pipeline: [
+              {
+                $match: {
+                  status: "delivered",
+                  $expr: { $in: ["$$productId", "$items.productId"] },
+                },
+              },
+              { $unwind: "$items" },
+              { $match: { $expr: { $eq: ["$items.productId", "$$productId"] } } },
+              { $group: { _id: null, quantity: { $sum: "$items.quantity" } } },
+            ],
+            as: "sales",
+          },
+        },
+        { $match: { "sales.0.quantity": { $gt: 0 } } },
+        { $addFields: { soldQuantity: { $first: "$sales.quantity" } } },
+      );
     const sort: Record<string, 1 | -1 | { $meta: "textScore" }> =
-      query.sort === "price_low_high"
-        ? { minSalePricePaise: 1, _id: 1 }
-        : query.sort === "price_high_low"
-          ? { minSalePricePaise: -1, _id: 1 }
-          : query.sort === "discount"
-            ? { maxDiscountPercent: -1, _id: 1 }
-            : query.sort === "rating"
-              ? { "rating.average": -1, "rating.count": -1 }
-              : query.sort === "relevance" && query.search
-                ? { textScore: { $meta: "textScore" } }
-                : { publishedAt: -1, _id: -1 };
+      query.bestSellers === "true"
+        ? { soldQuantity: -1, _id: 1 }
+        : query.sort === "price_low_high"
+          ? { minSalePricePaise: 1, _id: 1 }
+          : query.sort === "price_high_low"
+            ? { minSalePricePaise: -1, _id: 1 }
+            : query.sort === "discount"
+              ? { maxDiscountPercent: -1, _id: 1 }
+              : query.sort === "rating"
+                ? { "rating.average": -1, "rating.count": -1 }
+                : query.sort === "relevance" && query.search
+                  ? { textScore: { $meta: "textScore" } }
+                  : { publishedAt: -1, _id: -1 };
     const [items, counts] = await Promise.all([
       ProductModel.aggregate<AggregateProduct>([
         ...stages,
@@ -602,7 +648,16 @@ export class MongooseCatalogueRepository implements CatalogueRepository {
     const match: Record<string, unknown> = {};
     if (input.status) match.status = input.status;
     if (input.audience) match.audience = input.audience;
-    if (input.search) match.$text = { $search: input.search };
+    if (input.search) {
+      const skuProducts = await ProductVariantModel.find({
+        sku: escapedRegex(input.search),
+      }).distinct("productId");
+      match.$or = [
+        { title: escapedRegex(input.search) },
+        { slug: escapedRegex(input.search) },
+        { _id: { $in: skuProducts } },
+      ];
+    }
     if (input.categoryId && Types.ObjectId.isValid(input.categoryId))
       match.categoryIds = new Types.ObjectId(input.categoryId);
     if (input.collectionId && Types.ObjectId.isValid(input.collectionId))
@@ -639,7 +694,7 @@ export class MongooseCatalogueRepository implements CatalogueRepository {
     return product ? adminDto(product) : null;
   }
 
-  async create(input: ProductMutationInput): Promise<AdminProductRecord> {
+  async create(input: ProductMutationInput, actorId?: string): Promise<AdminProductRecord> {
     await this.ensureAssignments(input.categoryIds, input.collectionIds);
     let productId = "";
     await mongoose.connection.transaction(async (session) => {
@@ -659,6 +714,7 @@ export class MongooseCatalogueRepository implements CatalogueRepository {
         care: input.care,
         status: input.status,
         featured: input.featured,
+        newArrival: input.newArrival ?? false,
         seo: input.seo,
         rating: { average: 0, count: 0 },
         ...(input.status === "active" ? { publishedAt: new Date() } : {}),
@@ -677,29 +733,30 @@ export class MongooseCatalogueRepository implements CatalogueRepository {
           salePricePaise: variant.salePricePaise,
           taxRateBps: variant.taxRateBps,
           hsn: variant.hsn,
-          stockOnHand: 0,
+          stockOnHand: variant.initialStock ?? 0,
           stockReserved: 0,
-          reorderLevel: 0,
+          reorderLevel: variant.reorderLevel ?? 0,
           weightGrams: variant.weightGrams,
           ...(variant.dimensionsMm ? { dimensionsMm: variant.dimensionsMm } : {}),
           imagePublicIds: [],
           status: variant.status,
         });
         await document.save({ session });
+        await this.recordInitialStock(document, session, actorId);
       }
     });
     return (await this.findAdminById(productId))!;
   }
-  async update(id: string, input: ProductPatchMutation) {
+  async update(id: string, input: ProductPatchMutation, actorId?: string) {
     if (!Types.ObjectId.isValid(id)) return null;
     const existing = await ProductModel.findById(id)
-      .select("status publishedAt slug")
+      .select("status publishedAt slug previousSlugs")
       .lean()
       .exec();
     if (!existing) return null;
     await this.ensureAssignments(input.categoryIds, input.collectionIds);
     const update = Object.fromEntries(
-      Object.entries(input).filter((entry) => entry[1] !== undefined),
+      Object.entries(input).filter((entry) => entry[1] !== undefined && entry[0] !== "variants"),
     ) as Record<string, unknown>;
     if (input.categoryIds)
       update.categoryIds = input.categoryIds.map((value) => new Types.ObjectId(value));
@@ -709,62 +766,100 @@ export class MongooseCatalogueRepository implements CatalogueRepository {
       update.publishedAt = new Date();
     const operators: Record<string, unknown> = { $set: update };
     if (input.slug && input.slug !== existing.slug) {
-      operators.$addToSet = { previousSlugs: existing.slug };
-      operators.$pull = { previousSlugs: input.slug };
+      update.previousSlugs = [
+        ...new Set([...(existing.previousSlugs ?? []), existing.slug]),
+      ].filter((slug) => slug !== input.slug);
     }
-    await ProductModel.updateOne({ _id: id }, operators, { runValidators: true }).exec();
+    await mongoose.connection.transaction(async (session) => {
+      await ProductModel.updateOne({ _id: id }, operators, { runValidators: true, session }).exec();
+      if (input.variants) await this.writeVariants(id, input.variants, session, actorId);
+    });
     return this.findAdminById(id);
   }
   async setStatus(id: string, status: ProductStatus) {
     return this.update(id, { status });
   }
-  async replaceVariants(id: string, variants: readonly VariantInput[]) {
+  private async recordInitialStock(
+    variant: ProductVariant & { _id: Types.ObjectId },
+    session: mongoose.ClientSession,
+    actorId?: string,
+  ) {
+    if (!variant.stockOnHand) return;
+    await InventoryMovementModel.create(
+      [
+        {
+          productId: variant.productId,
+          variantId: variant._id,
+          type: "manual_adjustment",
+          quantityDelta: variant.stockOnHand,
+          stockBefore: 0,
+          stockAfter: variant.stockOnHand,
+          reason: "Initial stock entered in product editor",
+          ...(actorId ? { actorId } : {}),
+        },
+      ],
+      { session },
+    );
+  }
+  async replaceVariants(id: string, variants: readonly VariantInput[], actorId?: string) {
     if (!Types.ObjectId.isValid(id) || !(await ProductModel.exists({ _id: id }))) return null;
-    await mongoose.connection.transaction(async (session) => {
-      const keep: Types.ObjectId[] = [];
-      for (const variant of variants) {
-        const fields = {
-          sku: variant.sku,
-          colour: variant.colour,
-          size: variant.size,
-          attributes: new Map(Object.entries(variant.attributes)),
-          mrpPaise: variant.mrpPaise,
-          salePricePaise: variant.salePricePaise,
-          taxRateBps: variant.taxRateBps,
-          hsn: variant.hsn,
-          weightGrams: variant.weightGrams,
-          ...(variant.colourHex ? { colourHex: variant.colourHex } : {}),
-          ...(variant.dimensionsMm ? { dimensionsMm: variant.dimensionsMm } : {}),
-          status: variant.status,
-        };
-        if (variant.id && Types.ObjectId.isValid(variant.id)) {
-          const updated = await ProductVariantModel.updateOne(
-            { _id: variant.id, productId: id },
-            { $set: fields, ...(!variant.colourHex ? { $unset: { colourHex: 1 } } : {}) },
-            { session, runValidators: true },
-          );
-          if (updated.matchedCount !== 1) throw new Error("INVALID_VARIANT_MATRIX");
-          keep.push(new Types.ObjectId(variant.id));
-        } else {
-          const created = new ProductVariantModel({
-            ...fields,
-            productId: new Types.ObjectId(id),
-            stockOnHand: 0,
-            stockReserved: 0,
-            reorderLevel: 0,
-            imagePublicIds: [],
-          });
-          await created.save({ session });
-          keep.push(created._id);
-        }
-      }
-      await ProductVariantModel.updateMany(
-        { productId: id, _id: { $nin: keep } },
-        { $set: { status: "inactive" } },
-        { session },
-      );
-    });
+    await mongoose.connection.transaction((session) =>
+      this.writeVariants(id, variants, session, actorId),
+    );
     return this.findAdminById(id);
+  }
+  private async writeVariants(
+    id: string,
+    variants: readonly VariantInput[],
+    session: mongoose.ClientSession,
+    actorId?: string,
+  ) {
+    const ids = variants.flatMap((variant) => (variant.id ? [variant.id] : []));
+    if (new Set(ids).size !== ids.length) throw new Error("INVALID_VARIANT_MATRIX");
+    const keep: Types.ObjectId[] = [];
+    for (const variant of variants) {
+      const fields = {
+        sku: variant.sku,
+        colour: variant.colour,
+        size: variant.size,
+        attributes: new Map(Object.entries(variant.attributes)),
+        mrpPaise: variant.mrpPaise,
+        salePricePaise: variant.salePricePaise,
+        taxRateBps: variant.taxRateBps,
+        hsn: variant.hsn,
+        weightGrams: variant.weightGrams,
+        ...(variant.reorderLevel !== undefined ? { reorderLevel: variant.reorderLevel } : {}),
+        ...(variant.colourHex ? { colourHex: variant.colourHex } : {}),
+        ...(variant.dimensionsMm ? { dimensionsMm: variant.dimensionsMm } : {}),
+        status: variant.status,
+      };
+      if (variant.id && Types.ObjectId.isValid(variant.id)) {
+        const updated = await ProductVariantModel.updateOne(
+          { _id: variant.id, productId: id },
+          { $set: fields, ...(!variant.colourHex ? { $unset: { colourHex: 1 } } : {}) },
+          { session, runValidators: true },
+        );
+        if (updated.matchedCount !== 1) throw new Error("INVALID_VARIANT_MATRIX");
+        keep.push(new Types.ObjectId(variant.id));
+      } else {
+        const created = new ProductVariantModel({
+          ...fields,
+          productId: new Types.ObjectId(id),
+          stockOnHand: variant.initialStock ?? 0,
+          stockReserved: 0,
+          reorderLevel: variant.reorderLevel ?? 0,
+          imagePublicIds: [],
+        });
+        await created.save({ session });
+        await this.recordInitialStock(created, session, actorId);
+        keep.push(created._id);
+      }
+    }
+    await ProductVariantModel.updateMany(
+      { productId: id, _id: { $nin: keep } },
+      { $set: { status: "inactive" } },
+      { session },
+    );
   }
   async bulkUpdate(
     productIds: readonly string[],

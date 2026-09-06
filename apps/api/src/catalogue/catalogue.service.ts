@@ -116,7 +116,10 @@ export class CatalogueService {
   }
   async create(input: ProductWriteInput, actorId: string, context: AuthContext) {
     const product = await this.catalogueWrite(() =>
-      this.repository.create({ ...input, descriptionHtml: sanitized(input.descriptionHtml) }),
+      this.repository.create(
+        { ...input, descriptionHtml: sanitized(input.descriptionHtml) },
+        actorId,
+      ),
     );
     await this.audit("catalogue.product_created", actorId, product.id, context, {
       status: product.status,
@@ -127,7 +130,7 @@ export class CatalogueService {
     const patch = { ...input } as ProductPatchInput;
     if (input.descriptionHtml !== undefined)
       patch.descriptionHtml = sanitized(input.descriptionHtml);
-    const product = await this.catalogueWrite(() => this.repository.update(id, patch));
+    const product = await this.catalogueWrite(() => this.repository.update(id, patch, actorId));
     if (!product) throw new HttpError(404, "PRODUCT_NOT_FOUND", "Product not found.");
     await this.audit("catalogue.product_updated", actorId, id, context);
     return product;
@@ -144,7 +147,9 @@ export class CatalogueService {
     actorId: string,
     context: AuthContext,
   ) {
-    const product = await this.catalogueWrite(() => this.repository.replaceVariants(id, variants));
+    const product = await this.catalogueWrite(() =>
+      this.repository.replaceVariants(id, variants, actorId),
+    );
     if (!product) throw new HttpError(404, "PRODUCT_NOT_FOUND", "Product not found.");
     await this.audit("catalogue.variant_matrix_updated", actorId, id, context, {
       variants: variants.length,
@@ -220,16 +225,17 @@ export class CatalogueService {
     return product;
   }
   async removeMedia(id: string, publicId: string, actorId: string, context: AuthContext) {
+    const product = await this.adminDetail(id);
+    const media = product.media.find((item) => item.publicId === publicId);
+    if (!media) throw new HttpError(404, "MEDIA_NOT_FOUND", "Media reference not found.");
     const removed = await this.repository.removeMediaReference(id, publicId);
     if (!removed) throw new HttpError(404, "MEDIA_NOT_FOUND", "Media reference not found.");
-    const remainingReferences = await this.repository.countMediaReferences(publicId);
-    if (remainingReferences === 0) await this.mediaProvider.delete(publicId);
     this.publicCache.invalidate();
-    await this.audit("catalogue.media_removed", actorId, id, context, {
-      publicId,
-      remoteDeleted: remainingReferences === 0,
-    });
-    return { remoteDeleted: remainingReferences === 0 };
+    const remainingReferences = await this.repository.countMediaReferences(publicId);
+    const remoteDeleted = remainingReferences === 0 && !media.secureUrl.startsWith("/assets/approved/");
+    if (remoteDeleted) await this.mediaProvider.delete(publicId);
+    await this.audit("catalogue.media_removed", actorId, id, context, { publicId, remoteDeleted });
+    return { remoteDeleted };
   }
   async adjustInventory(
     variantId: string,

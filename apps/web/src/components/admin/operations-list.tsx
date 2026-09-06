@@ -124,7 +124,7 @@ export function OperationsList({ module }: { readonly module: Module }) {
     const reason = window.prompt("Reason for this manual stock adjustment:");
     if (!reason) return;
     await apiRequest(
-      `/catalog/admin/variants/${variant.variantId}/inventory-adjustments`,
+      `/admin/variants/${variant.variantId}/inventory-adjustments`,
       auth.accessToken,
       {
         method: "POST",

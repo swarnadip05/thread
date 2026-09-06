@@ -13,7 +13,11 @@ export function ProductRail({
   section: HomepageSectionDto;
   tone?: "ivory" | "paper";
 }) {
-  if (!products.length && process.env.NODE_ENV !== "development") return null;
+  if (
+    !products.length &&
+    (section.type === "best_sellers" || process.env.NODE_ENV !== "development")
+  )
+    return null;
   return (
     <section
       aria-labelledby={`${section.id}-title`}

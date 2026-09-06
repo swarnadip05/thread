@@ -58,18 +58,30 @@ interface ProductPage {
 }
 
 export async function loadHomepageProducts(
-  sort: "newest" | "rating",
+  sort: "newest" | "best_sellers",
   collectionSlugs: readonly string[],
 ): Promise<readonly ProductSummaryDto[]> {
-  const parameters = new URLSearchParams({ limit: "4", page: "1", sort });
+  const parameters = new URLSearchParams({ limit: "4", page: "1", sort: "newest" });
+  if (sort === "best_sellers") parameters.set("bestSellers", "true");
+  if (sort === "newest") parameters.set("newArrival", "true");
   if (collectionSlugs.length) parameters.set("collection", collectionSlugs.join(","));
   try {
     const response = await fetch(`${apiUrl}/api/v1/catalog/products?${parameters}`, {
-      next: { revalidate: 60 },
+      cache: "no-store",
       signal: AbortSignal.timeout(2_000),
     });
     if (!response.ok) return [];
     const body = (await response.json()) as ApiResponse<ProductPage>;
+    if (body.success && !body.data.items.length && sort === "newest") {
+      parameters.delete("newArrival");
+      const fallback = await fetch(`${apiUrl}/api/v1/catalog/products?${parameters}`, {
+        cache: "no-store",
+        signal: AbortSignal.timeout(2_000),
+      });
+      if (!fallback.ok) return [];
+      const page = (await fallback.json()) as ApiResponse<ProductPage>;
+      return page.success ? page.data.items : [];
+    }
     return body.success ? body.data.items : [];
   } catch {
     return [];

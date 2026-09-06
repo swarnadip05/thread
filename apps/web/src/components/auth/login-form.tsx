@@ -6,20 +6,25 @@ import type { AuthSessionDto } from "@thread/types";
 import { loginSchema, type LoginInput } from "@thread/validation";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { useForm } from "react-hook-form";
-import { authRequest, API_URL, ApiClientError } from "@/auth/auth-client";
+import { authRequest, API_URL } from "@/auth/auth-client";
 import { useAuth } from "@/auth/auth-provider";
 import { AuthHeading } from "./auth-heading";
 import { PhoneLoginForm } from "./phone-login-form";
 
+const subscribeToHydration = () => () => {};
+
 export function LoginForm({
   googleEnabled,
   phoneEnabled,
+  admin = false,
 }: {
+  admin?: boolean;
   googleEnabled: boolean;
   phoneEnabled: boolean;
 }) {
+  const hydrated = useSyncExternalStore(subscribeToHydration, () => true, () => false);
   const [mode, setMode] = useState<"email" | "phone">("email");
   const [serverError, setServerError] = useState("");
   const router = useRouter();
@@ -39,25 +44,45 @@ export function LoginForm({
         method: "POST",
         body: JSON.stringify(values),
       });
+      if (
+        admin &&
+        !session.user.roles.some((role) =>
+          ["super_admin", "admin", "catalog_manager", "order_manager", "support_agent"].includes(
+            role,
+          ),
+        )
+      ) {
+        throw new Error("This account does not have admin access.");
+      }
       auth.establish(session);
-      router.push(
-        session.user.roles.includes("customer") && session.user.roles.length === 1
-          ? "/account"
-          : "/admin",
-      );
+      const roles = session.user.roles;
+      const destination = session.user.mustChangePassword
+        ? "/account/change-password"
+        : roles.includes("super_admin") ||
+            roles.includes("admin") ||
+            roles.includes("order_manager")
+          ? "/admin"
+          : roles.includes("catalog_manager")
+            ? "/admin/products"
+            : roles.includes("support_agent")
+              ? "/admin/orders"
+              : "/account";
+      router.push(destination);
     } catch (error) {
       setServerError(
-        error instanceof ApiClientError
-          ? error.message
-          : "Sign in is unavailable. Please try again.",
+        error instanceof Error ? error.message : "Sign in is unavailable. Please try again.",
       );
     }
   });
   return (
     <div>
       <AuthHeading
-        title="Welcome back"
-        description="Sign in securely to continue to your THREAD account."
+        title={admin ? "Admin sign in" : "Welcome back"}
+        description={
+          admin
+            ? "Sign in with your THREAD staff account."
+            : "Sign in securely to continue to your THREAD account."
+        }
       />
       {phoneEnabled ? (
         <div
@@ -93,10 +118,11 @@ export function LoginForm({
           }}
         />
       ) : (
-        <form className="mt-7 grid gap-5" onSubmit={submit} noValidate>
+        <form className="mt-7 grid gap-5" onSubmit={submit} method="post" noValidate>
           <div className="grid gap-2">
             <FieldLabel htmlFor="login-email">Email address</FieldLabel>
             <Input
+              disabled={!hydrated}
               autoComplete="email"
               id="login-email"
               inputMode="email"
@@ -116,6 +142,7 @@ export function LoginForm({
               </Link>
             </div>
             <Input
+              disabled={!hydrated}
               autoComplete="current-password"
               id="login-password"
               type="password"
@@ -131,7 +158,7 @@ export function LoginForm({
               {serverError}
             </p>
           ) : null}
-          <Button disabled={isSubmitting} type="submit">
+          <Button disabled={!hydrated || isSubmitting} type="submit">
             {isSubmitting ? "Signing in…" : "Sign in"}
           </Button>
         </form>
@@ -148,12 +175,17 @@ export function LoginForm({
           </Button>
         </>
       ) : null}
-      <p className="mt-7 text-center text-sm text-muted">
-        New to THREAD?{" "}
-        <Link className="font-semibold text-ink underline underline-offset-4" href="/auth/register">
-          Create an account
-        </Link>
-      </p>
+      {!admin ? (
+        <p className="mt-7 text-center text-sm text-muted">
+          New to THREAD?{" "}
+          <Link
+            className="font-semibold text-ink underline underline-offset-4"
+            href="/auth/register"
+          >
+            Create an account
+          </Link>
+        </p>
+      ) : null}
     </div>
   );
 }

@@ -20,7 +20,7 @@ export function ProtectedRoute({
     let active = true;
     void refresh().then((session) => {
       if (!active) return;
-      if (!session) router.replace("/auth/login");
+      if (!session) router.replace(pathname.startsWith("/admin") ? "/admin/login" : "/auth/login");
       else if (session.user.mustChangePassword && pathname !== "/account/change-password")
         router.replace("/account/change-password");
       else if (allowedRoles && !session.user.roles.some((role) => allowedRoles.includes(role)))

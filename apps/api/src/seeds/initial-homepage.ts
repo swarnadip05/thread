@@ -105,7 +105,7 @@ export const initialHomepageSections: readonly HomepageSectionRecord[] = [
     eyebrow: "Most loved",
     title: "Best Sellers",
     subtitle: "A curated preview while verified order history determines the best-seller ranking.",
-    primaryCta: { label: "View all", href: "/search?sort=rating" },
+    primaryCta: { label: "View all", href: "/search?bestSellers=true" },
     collectionSlugs: [],
     items: [
       {

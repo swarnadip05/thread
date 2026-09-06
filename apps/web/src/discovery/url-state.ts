@@ -53,6 +53,9 @@ export function normalizeDiscoveryParams(raw: RawSearchParams): URLSearchParams 
     const values = list(raw[key]);
     if (values.length) parameters.set(key, values.join(","));
   }
+  for (const key of ["newArrival", "featured", "bestSellers"] as const) {
+    if (first(raw[key]) === "true") parameters.set(key, "true");
+  }
   const page = integer(raw.page, 1, 10_000);
   if (page && page !== "1") parameters.set("page", page);
   const sort = first(raw.sort);

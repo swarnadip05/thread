@@ -1,4 +1,5 @@
 import type {
+  AdminProductDto,
   ProductAudience,
   ProductDetailDto,
   ProductFacetsDto,
@@ -32,11 +33,7 @@ export interface AdminProductListInput {
   readonly collectionId?: string;
   readonly sku?: string;
 }
-export interface AdminProductRecord extends ProductDetailDto {
-  readonly status: ProductStatus;
-  readonly createdAt: string;
-  readonly updatedAt: string;
-}
+export type AdminProductRecord = AdminProductDto;
 export interface ProductMutationInput extends Omit<ProductWriteInput, "variants"> {
   readonly descriptionHtml: string;
   readonly variants: readonly VariantInput[];
@@ -56,12 +53,17 @@ export interface CatalogueRepository {
   related(slug: string, limit: number): Promise<readonly ProductSummaryDto[]>;
   listAdmin(input: AdminProductListInput): Promise<PageResult<AdminProductRecord>>;
   findAdminById(id: string): Promise<AdminProductRecord | null>;
-  create(input: ProductMutationInput): Promise<AdminProductRecord>;
-  update(id: string, input: ProductPatchMutation): Promise<AdminProductRecord | null>;
+  create(input: ProductMutationInput, actorId?: string): Promise<AdminProductRecord>;
+  update(
+    id: string,
+    input: ProductPatchMutation,
+    actorId?: string,
+  ): Promise<AdminProductRecord | null>;
   setStatus(id: string, status: ProductStatus): Promise<AdminProductRecord | null>;
   replaceVariants(
     id: string,
     variants: readonly VariantInput[],
+    actorId?: string,
   ): Promise<AdminProductRecord | null>;
   bulkUpdate(
     productIds: readonly string[],

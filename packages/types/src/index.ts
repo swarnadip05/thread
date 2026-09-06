@@ -147,6 +147,11 @@ export interface ProductSearchSuggestionsDto {
 }
 
 export interface ProductDetailDto extends ProductSummaryDto {
+  readonly seo?: {
+    readonly title?: string;
+    readonly description?: string;
+    readonly noIndex: boolean;
+  };
   readonly descriptionHtml: string;
   readonly care: readonly string[];
   readonly tags: readonly string[];
@@ -154,6 +159,35 @@ export interface ProductDetailDto extends ProductSummaryDto {
   readonly collectionIds: readonly string[];
   readonly media: readonly ProductMediaDto[];
   readonly variants: readonly ProductVariantDto[];
+}
+
+export interface AdminProductDto extends ProductDetailDto {
+  readonly status: ProductStatus;
+  readonly featured?: boolean;
+  readonly newArrival?: boolean;
+  readonly seo?: {
+    readonly title?: string;
+    readonly description?: string;
+    readonly noIndex: boolean;
+  };
+  readonly variants: readonly AdminProductVariantDto[];
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+export interface AdminProductVariantDto extends ProductVariantDto {
+  readonly stockOnHand?: number;
+  readonly stockReserved?: number;
+  readonly reorderLevel?: number;
+  readonly weightGrams?: number;
+  readonly taxRateBps?: number | null;
+  readonly hsn?: string | null;
+  readonly attributes?: Readonly<Record<string, string>>;
+  readonly dimensionsMm?: {
+    readonly length: number;
+    readonly width: number;
+    readonly height: number;
+  };
 }
 
 export type ReviewModerationStatus = "pending" | "approved" | "rejected";

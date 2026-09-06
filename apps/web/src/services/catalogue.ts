@@ -33,7 +33,7 @@ export async function loadProductSlugRedirect(slug: string): Promise<string | nu
 async function catalogueGet<T>(path: string): Promise<T | null> {
   try {
     const response = await fetch(`${apiUrl}/api/v1${path}`, {
-      next: { revalidate: 60 },
+      cache: "no-store",
       signal: AbortSignal.timeout(4_000),
     });
     if (!response.ok) return null;
@@ -75,11 +75,11 @@ export async function loadDiscoveryData(
   try {
     const [productsResponse, facetsResponse] = await Promise.all([
       fetch(`${apiUrl}/api/v1/catalog/products?${query}`, {
-        next: { revalidate: 60 },
+        cache: "no-store",
         signal: AbortSignal.timeout(4_000),
       }),
       fetch(`${apiUrl}/api/v1/catalog/products/facets?${query}`, {
-        next: { revalidate: 60 },
+        cache: "no-store",
         signal: AbortSignal.timeout(4_000),
       }),
     ]);

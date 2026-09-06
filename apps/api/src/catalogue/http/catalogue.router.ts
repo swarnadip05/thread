@@ -132,7 +132,7 @@ export function createCatalogueRouter(
   );
   const stateChangeSecurity = [createOriginGuard(options.webOrigin), requireCsrf];
   const cachePublicCatalogue = (_request: Request, response: Response, next: () => void) => {
-    response.setHeader("Cache-Control", "public, max-age=60, stale-while-revalidate=300");
+    response.setHeader("Cache-Control", "no-store");
     next();
   };
 

@@ -55,6 +55,9 @@ export const catalogueQuerySchema = z
   .object({
     page: z.coerce.number().int().min(1).default(1),
     limit: z.coerce.number().int().min(1).max(100).default(24),
+    newArrival: z.enum(["true", "false"]).optional(),
+    featured: z.enum(["true", "false"]).optional(),
+    bestSellers: z.enum(["true", "false"]).optional(),
     category: optionalCsvList,
     collection: optionalCsvList,
     audience: optionalCsvList.pipe(
@@ -135,6 +138,8 @@ const variantInputSchema = z
     salePricePaise: z.number().int().min(0),
     taxRateBps: z.number().int().min(0).max(10_000).nullable().default(null),
     hsn: z.string().trim().max(16).nullable().default(null),
+    initialStock: z.number().int().min(0).max(1_000_000).optional(),
+    reorderLevel: z.number().int().min(0).max(1_000_000).optional(),
     weightGrams: z.number().int().min(1).max(100_000),
     dimensionsMm: z
       .object({
@@ -144,6 +149,10 @@ const variantInputSchema = z
       })
       .optional(),
     status: z.enum(["active", "inactive"]).default("active"),
+  })
+  .refine((value) => !value.id || !value.initialStock, {
+    message: "Use an inventory adjustment to change existing stock.",
+    path: ["initialStock"],
   })
   .refine((value) => value.salePricePaise <= value.mrpPaise, {
     message: "Sale price cannot exceed MRP.",
@@ -164,6 +173,7 @@ export const productWriteSchema = z.object({
   material: z.string().trim().max(240).nullable().default(null),
   care: z.array(z.string().trim().min(1).max(240)).max(20).default([]),
   featured: z.boolean().default(false),
+  newArrival: z.boolean().optional(),
   status: z.enum(["draft", "active", "inactive", "archived"]).default("draft"),
   seo: z
     .object({
@@ -175,7 +185,7 @@ export const productWriteSchema = z.object({
   variants: z.array(variantInputSchema).min(1).max(500),
 });
 
-export const productPatchSchema = productWriteSchema.partial().omit({ variants: true });
+export const productPatchSchema = productWriteSchema.partial();
 export const variantMatrixSchema = z.object({
   variants: z.array(variantInputSchema).min(1).max(500),
 });
@@ -636,6 +646,12 @@ export const categoryCreateSchema = z.object({
   sortOrder: z.number().int().min(0).max(10_000).default(0),
 });
 export const categoryUpdateSchema = categoryCreateSchema.partial();
+
+export const collectionWriteSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  slug: slugSchema,
+  active: z.boolean().default(false),
+});
 
 export const navigationUpdateSchema = z.object({
   items: z

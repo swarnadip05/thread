@@ -55,10 +55,11 @@ const productVariantSchema = new Schema<ProductVariant>(
   { strict: "throw", timestamps: true },
 );
 productVariantSchema.path("salePricePaise").validate(function (
-  this: ProductVariant,
+  this: ProductVariant | { get(path: string): unknown },
   value: number,
 ) {
-  return value <= this.mrpPaise;
+  const mrp = "get" in this ? this.get("mrpPaise") : this.mrpPaise;
+  return typeof mrp !== "number" || value <= mrp;
 }, "Sale price cannot exceed MRP.");
 productVariantSchema.index({ sku: 1 }, { unique: true, name: "product_variant_sku_unique" });
 productVariantSchema.index({ productId: 1, status: 1 }, { name: "variant_product_status" });

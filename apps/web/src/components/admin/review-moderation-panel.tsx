@@ -15,7 +15,7 @@ export function ReviewModerationPanel() {
     if (!auth.accessToken) return;
     try {
       const page = await apiRequest<ProductReviewPageDto>(
-        "/catalog/admin/reviews?status=pending&limit=50",
+        "/admin/reviews?status=pending&limit=50",
         auth.accessToken,
       );
       setReviews(page.items);
@@ -33,7 +33,7 @@ export function ReviewModerationPanel() {
     const reason =
       status === "rejected" ? window.prompt("Reason for rejecting this review:") : undefined;
     if (status === "rejected" && !reason) return;
-    await apiRequest(`/catalog/admin/reviews/${id}/moderation`, auth.accessToken, {
+    await apiRequest(`/admin/reviews/${id}/moderation`, auth.accessToken, {
       method: "PATCH",
       body: JSON.stringify({ status, ...(reason ? { reason } : {}) }),
     });

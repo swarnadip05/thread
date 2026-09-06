@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  allowedDevOrigins: ["127.0.0.1"],
+  distDir: process.env.E2E_NEXT_DIST_DIR || ".next",
   images: {
     qualities: [75, 88],
     remotePatterns: [{ protocol: "https", hostname: "res.cloudinary.com" }],
@@ -33,7 +35,7 @@ const nextConfig: NextConfig = {
       },
       {
         source: "/shop/best-sellers",
-        destination: "/search?sort=rating",
+        destination: "/search?bestSellers=true",
         permanent: true,
       },
     ];

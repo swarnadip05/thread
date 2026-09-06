@@ -1,72 +1,23 @@
 # Admin product operations
 
-The protected product workspace is available at
-<http://localhost:3000/admin/products>. It requires a `super_admin`, `admin`, or
-`catalog_manager` account.
+The existing admin shell is retained. Sign in at <http://localhost:3000/admin/login> using the existing email/password authentication. The customer login at `/auth/login` still works. Bootstrap, environment setup and exact startup commands are in [local development](local-development.md).
 
-## First local administrator
+Catalogue screens require `super_admin`, `admin` or `catalog_manager`. API endpoints independently enforce these roles. Inventory and orders retain their existing workflows and audit trail. Product archival preserves order history.
 
-Start MongoDB, run the normal seed, and then perform the one-time bootstrap:
+## Add or edit a real product
 
-```bash
-docker compose up -d mongo redis mongo-init
-pnpm --filter @thread/api seed
-ADMIN_BOOTSTRAP_NAME="Local Administrator" \
-ADMIN_BOOTSTRAP_EMAIL="your-admin-email@example.com" \
-ADMIN_BOOTSTRAP_PASSWORD="replace-with-a-unique-14-plus-character-password" \
-ADMIN_BOOTSTRAP_CONFIRM="CREATE_THREAD_SUPER_ADMIN" \
-pnpm --filter @thread/api bootstrap:admin
-```
+1. Sign in, complete the initial password change, and open **Products → Add product**.
+2. Enter name, slug, short/full description, audience, fit, material and verified care instructions.
+3. Select categories and collections; create them in their sidebar sections if necessary.
+4. Add each colour/size SKU with MRP, sale price, packaged weight, initial stock and low-stock threshold. Prices are entered in rupees and stored as integer paise; discount is calculated automatically.
+5. Upload owned/licensed images and enter descriptive alt text. New uploads need the API's Cloudinary settings. Existing approved local demo images do not need Cloudinary.
+6. Set Featured, New arrival and SEO fields, then save as Draft or **Active / published**.
+7. Use **View product**, then check the homepage, category, collection and search pages. Edit through `/admin/products/[id]/edit`; unpublish or archive through Products or the status selector.
 
-Use a local-only password and do not paste a production password into shell
-history. The bootstrap refuses to create a second super administrator and forces
-a password change on first login.
+Product and variant changes are one MongoDB transaction. New stock is recorded in the inventory movement history. Existing stock is shown in the editor and adjusted through **Inventory → Adjust stock**, with a quantity delta and reason; editing copy/prices never overwrites reservations or stock. Existing variants can be made inactive, preserving order references.
 
-## Adding a product
+Image transfer is a separate provider operation. Upload availability is checked before saving. A new product with selected images remains a draft until all uploads finish and the requested status is applied. If a transfer fails after creation, the UI keeps the saved product identity for retry instead of creating a duplicate. Select the failed files again to retry. Images can be removed or designated primary on the edit screen.
 
-1. Start the API and web app with `WEB_ORIGIN=http://localhost:3000 pnpm dev`.
-2. Open <http://localhost:3000/auth/login>, sign in, and complete the required password
-   change.
-3. Open **Admin → Products → Add product**.
-4. Enter the product copy, audience, category, fit, initial SKU, colour, size, MRP,
-   sale price, and packaged weight.
-5. Keep the product as **Draft** until its product facts, image rights, price, and
-   category have been reviewed.
-6. Open **Admin → Inventory**, find the new SKU, and use **Adjust stock** with a
-   meaningful reason. New variants intentionally start with zero stock.
-7. Activate the product only after at least one sellable variant has stock and all
-   customer-facing details are correct.
+Admin writes cannot set rating/review aggregates or a manual best-seller flag. Best Sellers uses quantities from delivered orders only and is hidden when there are no qualifying sales. New Arrivals prefers explicitly marked products, with newest active products as the fallback when none are marked. Public product records always require Active status, a past publication time and at least one active variant; zero-stock variants are displayed as sold out.
 
-Money entered in the admin is converted to integer paise before it reaches the API.
-The API validates that sale price does not exceed MRP. Tax rate, HSN, material, and
-unverified marketing claims are not guessed.
-
-## Product images
-
-The demo catalogue uses the approved local THREAD images prepared by
-`pnpm assets:prepare`. To upload a new image from the Products form, configure the
-API with a Cloudinary cloud name, API key, API secret, and restricted product
-folder. Uploads use a server-issued signature; the API secret is never sent to the
-browser.
-
-If Cloudinary is not configured, create the product without selecting an image.
-Do not upload reference screenshots, competitor assets, or images without recorded
-client ownership/licensing approval. Use descriptive alt text.
-
-## Useful verification
-
-```bash
-curl --fail http://localhost:4000/health/live
-curl --fail http://localhost:4000/health/ready
-pnpm check
-```
-
-For a populated local catalogue using the approved client photography:
-
-```bash
-DEMO_SEED_CONFIRM=SEED_THREAD_DEMO pnpm --filter @thread/api seed:demo
-```
-
-Demo records are clearly labelled and the command is blocked in production. Review
-and replace all demonstration prices, SKUs, descriptions, inventory, tax/HSN data,
-and product names before a client launch.
+SEO title, description and no-index are reflected on product detail pages. Public catalogue fetches do not retain stale browser/Next.js caches after admin publication; the API invalidates its short-lived query cache on catalogue changes. Homepage editorial photography is unchanged.

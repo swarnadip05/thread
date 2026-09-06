@@ -1,110 +1,108 @@
 # Local development
 
-## Prerequisites
-
-- Docker Desktop or another Docker Compose-compatible runtime
-- `nvm`
-- Corepack
-
-The repository pins Node.js 24.18.0 LTS and pnpm 11.15.0. Node 24 is selected because it is the current production LTS line supported by the workspace dependencies.
+Use Node **24.18.0** (`.nvmrc`) and pnpm **11.15.0** (`package.json`). Install nvm and Docker Desktop first, and start Docker Desktop before Compose. All commands below run from the repository root unless stated otherwise.
 
 ## First-time setup
 
-Run these commands from the repository root:
-
-```bash
+```sh
 nvm install
 nvm use
-corepack enable
-corepack prepare pnpm@11.15.0 --activate
-pnpm install
-pnpm assets:prepare
+npm install --global pnpm@11.15.0
+pnpm install --frozen-lockfile
+pnpm setup:local
 docker compose up -d mongo redis mongo-init
-docker compose ps
-```
-
-`mongo-init` is an idempotent one-shot service. It configures MongoDB as the single-node `rs0` replica set required for local transaction testing. A successful run exits with status 0.
-
-## Start both applications
-
-```bash
-nvm use
-WEB_ORIGIN=http://localhost:3000 pnpm dev
-```
-
-The services are then available at:
-
-- Web health page: <http://localhost:3000>
-- API liveness: <http://localhost:4000/health/live>
-- API readiness: <http://localhost:4000/health/ready>
-
-The API intentionally requires `WEB_ORIGIN`; CORS accepts that exact origin. For persistent local configuration, copy the examples and fill in local values:
-
-```bash
-cp apps/web/.env.example apps/web/.env.local
-cp apps/api/.env.example apps/api/.env
-```
-
-The example files contain variable names only. Do not commit populated environment files.
-
-For local acceptance testing, set `NEXT_PUBLIC_API_URL=http://localhost:4000` and
-`NEXT_PUBLIC_SITE_URL=http://localhost:3000` in `apps/web/.env.local`. In
-`apps/api/.env`, use the local MongoDB/Redis URLs, `WEB_ORIGIN=http://localhost:3000`,
-`EMAIL_PROVIDER=local`, `PAYMENT_PROVIDER=mock`, and separate random values of at
-least 32 characters for `ACCESS_TOKEN_SECRET` and `PRODUCT_PREVIEW_SECRET`.
-
-Apply core settings/content migrations and then explicitly opt in to the
-client-photography demo catalogue:
-
-```bash
+docker compose wait mongo-init
 pnpm --filter @thread/api seed
+```
+
+`setup:local` creates `apps/api/.env` and `apps/web/.env.local` from their examples, fills blank local defaults, and generates separate random `ACCESS_TOKEN_SECRET` and `PRODUCT_PREVIEW_SECRET` values. It preserves existing non-empty values and never prints secrets. Populated files are ignored by git. Inspect existing values if switching from a different environment.
+
+`mongo-init` initializes the single-node `rs0` replica set and waits for primary election. It is idempotent and must exit with status 0. MongoDB transactions are required for product and variant writes, bootstrap, seeds and checkout.
+
+The base seed creates settings, categories, navigation and editorial content. **It does not create products or an administrator.**
+
+## Optional demo products
+
+```sh
 DEMO_SEED_CONFIRM=SEED_THREAD_DEMO pnpm --filter @thread/api seed:demo
 ```
 
-The demo seed is blocked in production. Its 73 products use approved photography
-but intentionally labelled demonstration commerce data.
+The existing seed creates **12 explicitly labelled `[DEMO]` products**, using 48 approved local photographs already mapped in the repository. It is blocked in production and a repeat run reports `already-applied`. Do not treat the sample names, prices, inventory or product facts as a real client catalogue. It does not create an administrator or fake reviews.
 
-Online checkout uses `MockPaymentProvider` by default outside production. It
-creates an internal/provider order and completes a simulated captured payment
-without external credentials. To test Razorpay Test Mode instead, set:
+Approved browser images are committed under `apps/web/public/assets/approved/`. Run `pnpm assets:prepare` only when rebuilding them from the original `pictures/` handoff; normal startup does not require regenerating them.
 
-```dotenv
-PAYMENT_PROVIDER=razorpay
-RAZORPAY_MODE=test
-RAZORPAY_TEST_KEY_ID=
-RAZORPAY_TEST_KEY_SECRET=
-RAZORPAY_TEST_WEBHOOK_SECRET=
+## Create the first administrator
+
+These prompts work in this workspace's **zsh** shell and keep the password out of shell history:
+
+```sh
+read -r 'ADMIN_BOOTSTRAP_NAME?Admin name: '
+read -r 'ADMIN_BOOTSTRAP_EMAIL?Admin email: '
+read -rs 'ADMIN_BOOTSTRAP_PASSWORD?Admin password: '
+echo
+export ADMIN_BOOTSTRAP_NAME ADMIN_BOOTSTRAP_EMAIL ADMIN_BOOTSTRAP_PASSWORD
+export ADMIN_BOOTSTRAP_CONFIRM=CREATE_THREAD_SUPER_ADMIN
+pnpm --filter @thread/api bootstrap:admin
+unset ADMIN_BOOTSTRAP_PASSWORD ADMIN_BOOTSTRAP_CONFIRM
 ```
 
-Never place live keys in local files.
+`MONGODB_URI` is loaded from `apps/api/.env`. All four `ADMIN_BOOTSTRAP_*` values above are required. Use 14–128 characters including uppercase, lowercase and a number. Bootstrap requires a replica set. Repeating it for the same active super-admin email is a successful no-op: it never resets the password or changes roles. It refuses to promote an existing customer or create another initial administrator. Sign in and replace the bootstrap password before entering admin pages.
 
-Background jobs and Socket.IO use the same local Redis service. Keep
-`SOCKET_REDIS_ADAPTER_ENABLED=false` for a single local API process and
-`EMAIL_PROVIDER=local` to use the non-delivery log adapter. See
-`docs/realtime-and-jobs.md` for production scaling and SMTP settings.
+## Start applications
 
-## Optional Mongo Express
+Terminal 1, from the root:
 
-Mongo Express is bound to localhost and only starts through the development profile:
-
-```bash
-docker compose --profile development up -d mongo-express
+```sh
+pnpm dev
 ```
 
-Open <http://localhost:8081>. This local convenience service has authentication disabled and must not be exposed outside the development machine.
+Terminal 2, from the root:
 
-## Verification and checks
-
-```bash
-curl --fail http://localhost:4000/health/live
-curl --fail http://localhost:4000/health/ready
-pnpm check
+```sh
+nvm use
+pnpm --filter @thread/api dev:worker
 ```
 
-To stop the applications, press `Ctrl+C`. To stop local infrastructure while preserving data:
+The root `dev` script starts web and API; the worker needs the second command.
 
-```bash
-docker compose down
+- Storefront: <http://localhost:3000>
+- Admin login: <http://localhost:3000/admin/login>
+- Dashboard: <http://localhost:3000/admin>
+- Products: <http://localhost:3000/admin/products>
+- Add product: <http://localhost:3000/admin/products/new>
+- API readiness: <http://localhost:4000/health/ready>
+
+Use `localhost` consistently for web/API origins and cookies. If ports 3000 or 4000 are occupied, stop the conflicting process or deliberately change the web port, API port, CORS origins and web API/socket URLs together.
+
+## Environment requirements
+
+| API variable                                                           | Local value / requirement                                           |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `NODE_ENV`                                                             | `development` (must not be an empty string)                         |
+| `MONGODB_URI`                                                          | `mongodb://localhost:27017/thread_commerce?replicaSet=rs0`          |
+| `REDIS_URL`                                                            | `redis://localhost:6379`                                            |
+| `WEB_ORIGIN`, `CORS_ORIGINS`                                           | `http://localhost:3000`                                             |
+| `ACCESS_TOKEN_SECRET`, `PRODUCT_PREVIEW_SECRET`                        | Separate random secrets, at least 32 characters; generated by setup |
+| `EMAIL_PROVIDER`, `PAYMENT_PROVIDER`                                   | `local`, `mock`                                                     |
+| `SOCKET_REDIS_ADAPTER_ENABLED`                                         | `false` for a single local API                                      |
+| `HOST`, `PORT`                                                         | `127.0.0.1`, `4000`                                                 |
+| `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | Required only for uploading new images; set on API only             |
+| `CLOUDINARY_PRODUCT_FOLDER`                                            | `thread/products` by default                                        |
+
+Web: set `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_SOCKET_URL` to `http://localhost:4000`, and `NEXT_PUBLIC_SITE_URL` to `http://localhost:3000`. The setup command supplies these defaults. Google OAuth, SMS, SMTP and Razorpay credentials are optional for local admin/product work and are not required for mock checkout.
+
+## Checks
+
+```sh
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+pnpm exec playwright test e2e/product-management.spec.ts --project=chromium-desktop
 ```
 
-To remove local database and Redis volumes, explicitly run `docker compose down --volumes`. This permanently deletes local development data.
+For the existing Playwright suite, install a browser first with `pnpm exec playwright install chromium`. E2E uses the separate `thread_commerce_e2e` database and explicitly resets only that database. Optional `E2E_WEB_ORIGIN`, `E2E_API_ORIGIN`, `E2E_MONGODB_URI`, `E2E_REDIS_URL` and `E2E_BROWSER_EXECUTABLE` permit isolated ports and a preinstalled browser. E2E web output uses `.next-e2e` so it does not overwrite the normal build.
+
+## Stop
+
+Press Ctrl+C in both application terminals. `docker compose down` stops infrastructure while preserving volumes. `docker compose down --volumes` permanently deletes local data; it is not part of normal setup.

@@ -106,7 +106,7 @@ export const fallbackHomepage: PublicHomepageDto = {
       eyebrow: "Most loved",
       title: "Best Sellers",
       subtitle: "Customer favourites from THREAD.",
-      primaryCta: { label: "View all", href: "/search?sort=rating" },
+      primaryCta: { label: "View all", href: "/search?bestSellers=true" },
       collectionSlugs: [],
       items: [
         {

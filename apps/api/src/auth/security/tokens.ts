@@ -31,7 +31,7 @@ export class JwtAccessTokenService implements AccessTokenService {
   }
 
   issue(input: AccessTokenClaims): Promise<string> {
-    return new SignJWT({ roles: input.roles, sid: input.sessionFamilyId })
+    return new SignJWT({ roles: [...input.roles], sid: input.sessionFamilyId })
       .setProtectedHeader({ alg: "HS256", typ: "JWT" })
       .setSubject(input.subject)
       .setIssuer(this.issuer)

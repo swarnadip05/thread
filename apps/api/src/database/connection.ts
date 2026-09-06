@@ -19,7 +19,10 @@ export function isDatabaseReady(): boolean {
 
 export async function connectDatabase(uri: string, logger: Logger): Promise<void> {
   mongoose.set("strictQuery", true);
-  mongoose.set("sanitizeFilter", true);
+  // Repositories construct filters from validated scalar inputs. Global sanitizeFilter
+  // rewrites our own $in/$exists/$lte operators as literal values, breaking seeds,
+  // session rotation and catalogue queries. Never pass raw request objects to Mongoose.
+  mongoose.set("sanitizeFilter", false);
 
   mongoose.connection.on("disconnected", () => logger.warn("MongoDB disconnected"));
   mongoose.connection.on("error", (error) =>

@@ -20,6 +20,12 @@ export const notFoundHandler: RequestHandler = (request, _response, next) => {
 
 export function createErrorHandler(logger: Logger): ErrorRequestHandler {
   return (error: unknown, request, response, _next) => {
+    if (typeof error === "object" && error !== null && "code" in error && error.code === 11000)
+      error = new HttpError(
+        409,
+        "DUPLICATE_RECORD",
+        "This slug, email, SKU or variant combination already exists.",
+      );
     const httpError =
       error instanceof HttpError || error instanceof AuthError || error instanceof SafeProviderError
         ? error

@@ -14,11 +14,14 @@ async function run(): Promise<void> {
   const uri = process.env.MONGODB_URI;
   if (!uri) throw new Error("MONGODB_URI is required.");
   const logger = pino();
-  await connectDatabase(uri, logger);
-  await runSeedMigrations();
-  const result = await runDemoSeed();
-  logger.info({ result }, "THREAD local demo seed completed; no administrator was created");
-  await disconnectDatabase(logger);
+  try {
+    await connectDatabase(uri, logger);
+    await runSeedMigrations();
+    const result = await runDemoSeed();
+    logger.info({ result }, "THREAD local demo seed completed; no administrator was created");
+  } finally {
+    await disconnectDatabase(logger);
+  }
 }
 
 run().catch((error: unknown) => {

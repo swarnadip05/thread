@@ -57,7 +57,11 @@ export function createContentRouter(
     }),
   );
 
-  router.use("/admin", authenticateAdmin, requireRoles("super_admin", "admin", "catalog_manager"));
+  router.use(
+    ["/admin/categories", "/admin/navigation", "/admin/site-settings", "/admin/content"],
+    authenticateAdmin,
+    requireRoles("super_admin", "admin", "catalog_manager"),
+  );
   router.get("/admin/categories", async (_request, response) =>
     response.json({ success: true, data: await service.listCategories() }),
   );

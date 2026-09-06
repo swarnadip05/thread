@@ -10,14 +10,18 @@ import { CategoryModel } from "../models/category.model.js";
 import { SeedMigrationModel } from "../models/seed-migration.model.js";
 import { SiteSettingsModel } from "../models/site-settings.model.js";
 
-const DEMO_VERSION = "demo-2026-08-09-confirmed-pricing-v3";
+const DEMO_VERSION = "demo-2026-09-06-local-catalogue-v4";
 const genericCare = [
   "Wash inside out in cold water.",
   "Hang dry or tumble dry on low heat.",
   "Never iron directly over a print.",
 ] as const;
 
-const demoProducts = clientProductAssets.map((asset) => {
+const selectedAssets = [
+  ...clientProductAssets.filter((asset) => asset.audience === "men").slice(0, 6),
+  ...clientProductAssets.filter((asset) => asset.audience === "women").slice(0, 6),
+];
+const demoProducts = selectedAssets.map((asset) => {
   const oversized = asset.fit === "Oversized";
   return {
     ...asset,
@@ -79,13 +83,24 @@ async function applyDemoSeed(session: ClientSession): Promise<void> {
 
   for (const demo of demoProducts) {
     const categoryId = categoryBySlug.get(demo.categorySlug)!;
+    const existing = await ProductModel.findOne({ slug: demo.slug }).session(session).lean();
+    if (existing && !existing.tags.includes("demo"))
+      throw new Error(`Refusing to overwrite non-demo product: ${demo.slug}`);
+    const conflictingSku = await ProductVariantModel.findOne({
+      sku: { $in: ["S", "M", "L"].map((size) => `${demo.skuStem}-${size}`) },
+      ...(existing ? { productId: { $ne: existing._id } } : {}),
+    })
+      .session(session)
+      .lean();
+    if (conflictingSku)
+      throw new Error(`Demo SKU already belongs to another product: ${conflictingSku.sku}`);
     const product = await ProductModel.findOneAndUpdate(
       { slug: demo.slug },
       {
         $set: {
           title: demo.title,
-          shortDescription: `${demo.fit} fit · ${demo.fabricWeightGsm} GSM`,
-          descriptionHtml: `<p>${demo.fit} fit T-shirt made with ${demo.fabricWeightGsm} GSM fabric.</p>`,
+          shortDescription: `[DEMO] ${demo.fit} fit. Sample catalogue data for local development.`,
+          descriptionHtml: `<p>[DEMO] THREAD ${demo.fit} fit T-shirt using approved local photography. Product facts, pricing and stock are demonstration values; confirm real product details before publication.</p>`,
           categoryIds: [categoryId],
           collectionIds: [collection._id],
           audience: demo.audience,
@@ -104,10 +119,11 @@ async function applyDemoSeed(session: ClientSession): Promise<void> {
             primary: index === 0,
           })),
           fit: demo.fit,
-          material: `${demo.fabricWeightGsm} GSM`,
+          material: null,
           care: genericCare,
           status: "active",
           featured: demo.styleNumber <= 8,
+          newArrival: true,
           seo: {
             title: demo.title,
             description: "THREAD demonstration product using approved client photography.",
@@ -252,7 +268,7 @@ export function isValidDemoSeedConfirmation(value: string | undefined): boolean 
 }
 
 export const demoSeedProductSlugs = demoProducts.map((product) => product.slug);
-export const demoSeedProductImageCount = clientProductAssets.reduce(
+export const demoSeedProductImageCount = selectedAssets.reduce(
   (count, product) => count + product.images.length,
   0,
 );

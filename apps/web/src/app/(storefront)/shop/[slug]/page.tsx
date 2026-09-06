@@ -21,12 +21,13 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const data = await loadProductDetail(slug);
   if (!data) return { title: "Product not found | THREAD" };
   return {
-    title: `${data.product.title} | THREAD`,
-    description: data.product.shortDescription,
+    title: data.product.seo?.title || `${data.product.title} | THREAD`,
+    robots: { index: !data.product.seo?.noIndex },
+    description: data.product.seo?.description || data.product.shortDescription,
     alternates: { canonical: `/shop/${data.product.slug}` },
     openGraph: {
       title: data.product.title,
-      description: data.product.shortDescription,
+      description: data.product.seo?.description || data.product.shortDescription,
       ...(data.product.primaryImage ? { images: [data.product.primaryImage.secureUrl] } : {}),
     },
   };

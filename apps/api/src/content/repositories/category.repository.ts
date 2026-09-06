@@ -1,3 +1,5 @@
+import { ProductModel } from "../../catalogue/models/product.model.js";
+import { HttpError } from "../../middleware/error-handler.js";
 import { Types, type UpdateQuery } from "mongoose";
 
 import {
@@ -46,16 +48,33 @@ function toData(document: CategoryDocument): CategoryData {
 }
 
 export class MongooseCategoryRepository implements CategoryRepository {
+  private async ensureParent(
+    id: string | undefined,
+    parentId: string | null | undefined,
+  ): Promise<void> {
+    const visited = new Set(id ? [id] : []);
+    let current = parentId;
+    while (current) {
+      if (visited.has(current))
+        throw new HttpError(400, "CATEGORY_CYCLE", "A category cannot be its own ancestor.");
+      visited.add(current);
+      const parent = await CategoryModel.findById(current).select("parentId").lean();
+      if (!parent) throw new HttpError(400, "INVALID_PARENT", "Parent category not found.");
+      current = parent.parentId?.toString();
+    }
+  }
   async list(): Promise<readonly CategoryData[]> {
     return (await CategoryModel.find().sort({ audience: 1, sortOrder: 1, name: 1 }).exec()).map(
       toData,
     );
   }
   async create(input: CategoryWrite): Promise<CategoryData> {
+    await this.ensureParent(undefined, input.parentId);
     return toData(await CategoryModel.create(toPersistence(input)));
   }
   async update(id: string, input: Partial<CategoryWrite>): Promise<CategoryData | null> {
     if (!Types.ObjectId.isValid(id)) return null;
+    await this.ensureParent(id, input.parentId);
     const document = await CategoryModel.findByIdAndUpdate(
       id,
       { $set: toPersistence(input) },
@@ -68,6 +87,12 @@ export class MongooseCategoryRepository implements CategoryRepository {
     const objectId = new Types.ObjectId(id);
     if (await CategoryModel.exists({ parentId: objectId }))
       throw new Error("CATEGORY_HAS_CHILDREN");
+    if (await ProductModel.exists({ categoryIds: objectId }))
+      throw new HttpError(
+        409,
+        "CATEGORY_IN_USE",
+        "Remove product assignments first, or deactivate this category.",
+      );
     const result = await CategoryModel.deleteOne({ _id: objectId }).exec();
     return result.deletedCount === 1;
   }

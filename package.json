@@ -9,6 +9,7 @@
     "pnpm": ">=11.15.0 <12"
   },
   "scripts": {
+    "setup:local": "node scripts/setup-local-env.mjs",
     "assets:prepare": "tsx scripts/prepare-client-assets.ts && tsx scripts/build-asset-manifest.ts",
     "assets:audit": "tsx scripts/build-asset-manifest.ts",
     "dev": "turbo run dev",

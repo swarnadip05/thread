@@ -36,7 +36,7 @@ function toRecord(document: UserDocument): AuthUserRecord {
     ...(document.email ? { email: document.email } : {}),
     ...(document.phone ? { phone: document.phone } : {}),
     ...(document.passwordHash ? { passwordHash: document.passwordHash } : {}),
-    roles: document.roles as UserRole[],
+    roles: [...document.roles] as UserRole[],
     status: document.status,
     ...(document.emailVerifiedAt ? { emailVerifiedAt: document.emailVerifiedAt } : {}),
     ...(document.phoneVerifiedAt ? { phoneVerifiedAt: document.phoneVerifiedAt } : {}),

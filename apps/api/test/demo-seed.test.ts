@@ -19,9 +19,9 @@ describe("safe demo seed guardrails", () => {
     expect(joined).not.toMatch(/bewakoof|marvel|dc|minion|playstation|spider|batman/i);
   });
 
-  it("maps every approved four-view client product gallery", () => {
-    expect(demoSeedProductSlugs).toHaveLength(73);
-    expect(demoSeedProductImageCount).toBe(292);
+  it("maps twelve approved four-view client product galleries", () => {
+    expect(demoSeedProductSlugs).toHaveLength(12);
+    expect(demoSeedProductImageCount).toBe(48);
     expect(demoSeedProductSlugs).not.toContain("demo-thread-men-oversized-style-14");
     expect(demoSeedProductSlugs).not.toContain("demo-thread-men-oversized-style-20");
   });

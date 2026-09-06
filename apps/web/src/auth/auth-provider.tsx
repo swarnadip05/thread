@@ -1,7 +1,15 @@
 "use client";
 
 import type { AuthSessionDto, AuthUserDto } from "@thread/types";
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 
 import { authRequest, refreshSession } from "./auth-client";
 
@@ -23,16 +31,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(next);
     setStatus("authenticated");
   }, []);
-  const refresh = useCallback(async () => {
-    try {
-      const next = await refreshSession();
-      establish(next);
-      return next;
-    } catch {
-      setSession(null);
-      setStatus("anonymous");
-      return null;
-    }
+  const refreshInFlight = useRef<Promise<AuthSessionDto | null> | null>(null);
+  const refresh = useCallback(() => {
+    if (refreshInFlight.current) return refreshInFlight.current;
+    refreshInFlight.current = refreshSession()
+      .then((next) => {
+        establish(next);
+        return next;
+      })
+      .catch(() => {
+        setSession(null);
+        setStatus("anonymous");
+        return null;
+      })
+      .finally(() => {
+        refreshInFlight.current = null;
+      });
+    return refreshInFlight.current;
   }, [establish]);
   const logout = useCallback(async () => {
     try {

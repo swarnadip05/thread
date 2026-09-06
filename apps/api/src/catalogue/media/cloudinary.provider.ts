@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { HttpError } from "../../middleware/error-handler.js";
 
 export interface SignedUpload {
   readonly apiKey: string;
@@ -137,10 +138,18 @@ export class CloudinaryMediaProvider implements MediaProvider {
 
 export class UnconfiguredMediaProvider implements MediaProvider {
   createSignedUpload(): SignedUpload {
-    throw new Error("Cloudinary is not configured.");
+    throw new HttpError(
+      503,
+      "MEDIA_NOT_CONFIGURED",
+      "Image uploads require Cloudinary configuration on the API.",
+    );
   }
   async delete(): Promise<void> {
-    throw new Error("Cloudinary is not configured.");
+    throw new HttpError(
+      503,
+      "MEDIA_NOT_CONFIGURED",
+      "Image uploads require Cloudinary configuration on the API.",
+    );
   }
   validateMetadata(): boolean {
     return false;

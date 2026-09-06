@@ -14,10 +14,8 @@ interface SessionResponse {
 interface ProductResponse {
   readonly success: true;
   readonly data: {
-    readonly product: {
-      readonly slug: string;
-      readonly variants: readonly { readonly id: string; readonly availableStock: number }[];
-    };
+    readonly slug: string;
+    readonly variants: readonly { readonly id: string; readonly availableStock: number }[];
   };
 }
 
@@ -54,13 +52,15 @@ export default async function globalSetup(_config: FullConfig): Promise<void> {
     ...commonEnvironment,
     DEMO_SEED_CONFIRM: "SEED_THREAD_DEMO",
   });
-  runApiScript("bootstrap:admin", {
+  const bootstrapEnvironment = {
     ...commonEnvironment,
     ADMIN_BOOTSTRAP_CONFIRM: "CREATE_THREAD_SUPER_ADMIN",
     ADMIN_BOOTSTRAP_EMAIL: admin.email,
     ADMIN_BOOTSTRAP_NAME: "THREAD E2E Administrator",
     ADMIN_BOOTSTRAP_PASSWORD: admin.password,
-  });
+  };
+  runApiScript("bootstrap:admin", bootstrapEnvironment);
+  runApiScript("bootstrap:admin", bootstrapEnvironment);
 
   const customerRequest = await request.newContext({
     baseURL: apiOrigin,
@@ -91,10 +91,16 @@ export default async function globalSetup(_config: FullConfig): Promise<void> {
   if (!relogin.ok()) throw new Error(`E2E admin re-login failed: ${await relogin.text()}`);
   await adminRequest.storageState({ path: ".e2e/admin.json" });
 
-  const product = await customerRequest.get("/api/v1/catalog/products/demo-ink-oversized-tee");
+  const catalogue = await customerRequest.get(
+    "/api/v1/catalog/products?limit=1&availability=in_stock",
+  );
+  const catalogueBody = (await catalogue.json()) as { data: { items: { slug: string }[] } };
+  const firstSlug = catalogueBody.data?.items[0]?.slug;
+  if (!firstSlug) throw new Error("Demo seed did not produce visible products.");
+  const product = await customerRequest.get(`/api/v1/catalog/products/${firstSlug}`);
   if (!product.ok()) throw new Error(`E2E demo product lookup failed: ${await product.text()}`);
   const productBody = (await product.json()) as ProductResponse;
-  const variant = productBody.data.product.variants.find((item) => item.availableStock > 0);
+  const variant = productBody.data.variants.find((item) => item.availableStock > 0);
   if (!variant) throw new Error("E2E demo product has no available variant.");
   await writeFile(
     ".e2e/runtime.json",
@@ -102,7 +108,7 @@ export default async function globalSetup(_config: FullConfig): Promise<void> {
       {
         admin: { email: admin.email, password: updatedAdminPassword },
         customer,
-        productSlug: productBody.data.product.slug,
+        productSlug: productBody.data.slug,
         variantId: variant.id,
       },
       null,

@@ -30,6 +30,7 @@ export interface Product {
   care: string[];
   status: ProductStatus;
   featured: boolean;
+  newArrival?: boolean;
   seo: { title?: string; description?: string; noIndex: boolean };
   rating: { average: number; count: number };
   publishedAt?: Date;
@@ -80,6 +81,7 @@ const productSchema = new Schema<Product>(
       default: "draft",
     },
     featured: { type: Boolean, required: true, default: false },
+    newArrival: { type: Boolean, default: false },
     seo: {
       title: { type: String, trim: true, maxlength: 70 },
       description: { type: String, trim: true, maxlength: 180 },

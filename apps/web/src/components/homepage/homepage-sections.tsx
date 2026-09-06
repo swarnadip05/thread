@@ -347,7 +347,7 @@ function customerSafeSection(section: HomepageSectionDto): HomepageSectionDto {
   )
     return {
       ...section,
-      subtitle: "Customer favourites from THREAD.",
+      subtitle: "Popular styles, ranked by delivered orders.",
     };
   if (section.type === "brand_values")
     return {
