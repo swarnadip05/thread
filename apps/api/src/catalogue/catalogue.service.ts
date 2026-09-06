@@ -186,6 +186,7 @@ export class CatalogueService {
     return this.adminDetail(id);
   }
   async signedUpload(actorId: string, context: AuthContext) {
+    await this.mediaProvider.verifyConfiguration?.();
     const result = this.mediaProvider.createSignedUpload();
     await this.audit("catalogue.upload_signature_created", actorId, result.folder, context);
     return result;
@@ -232,7 +233,8 @@ export class CatalogueService {
     if (!removed) throw new HttpError(404, "MEDIA_NOT_FOUND", "Media reference not found.");
     this.publicCache.invalidate();
     const remainingReferences = await this.repository.countMediaReferences(publicId);
-    const remoteDeleted = remainingReferences === 0 && !media.secureUrl.startsWith("/assets/approved/");
+    const remoteDeleted =
+      remainingReferences === 0 && !media.secureUrl.startsWith("/assets/approved/");
     if (remoteDeleted) await this.mediaProvider.delete(publicId);
     await this.audit("catalogue.media_removed", actorId, id, context, { publicId, remoteDeleted });
     return { remoteDeleted };

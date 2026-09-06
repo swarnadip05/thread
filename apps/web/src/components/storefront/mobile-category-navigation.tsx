@@ -31,6 +31,13 @@ export function MobileCategoryNavigation({
             <AccordionItem key={item.id} value={item.id}>
               <AccordionTrigger className="text-base tracking-wide">{item.label}</AccordionTrigger>
               <AccordionContent className="pb-5 text-ink">
+                <Link
+                  className="focus-ring mb-2 block min-h-11 rounded-sm bg-ivory px-3 py-3 text-sm font-semibold"
+                  href={`/${item.audience}`}
+                  onClick={() => onOpenChange(false)}
+                >
+                  Shop all {item.label}
+                </Link>
                 <Accordion collapsible type="single">
                   {item.groups.map((group) => (
                     <AccordionItem key={group.id} value={group.id}>

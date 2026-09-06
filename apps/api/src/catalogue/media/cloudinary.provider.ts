@@ -30,10 +30,13 @@ export interface UploadedMediaMetadata {
 export interface MediaProvider {
   createSignedUpload(scope?: "product" | "homepage"): SignedUpload;
   delete(publicId: string): Promise<void>;
+  verifyConfiguration?(): Promise<void>;
   validateMetadata(metadata: UploadedMediaMetadata, scope?: "product" | "homepage"): boolean;
 }
 
 export class CloudinaryMediaProvider implements MediaProvider {
+  private verifiedAt = 0;
+
   constructor(
     private readonly config: {
       apiKey: string;
@@ -42,6 +45,32 @@ export class CloudinaryMediaProvider implements MediaProvider {
       folder: string;
     },
   ) {}
+
+  async verifyConfiguration(): Promise<void> {
+    if (Date.now() - this.verifiedAt < 5 * 60_000) return;
+    let response: Response;
+    try {
+      response = await fetch(`https://api.cloudinary.com/v1_1/${this.config.cloudName}/ping`, {
+        headers: {
+          authorization: `Basic ${Buffer.from(`${this.config.apiKey}:${this.config.apiSecret}`).toString("base64")}`,
+        },
+      });
+    } catch {
+      throw new HttpError(
+        503,
+        "MEDIA_PROVIDER_UNAVAILABLE",
+        "Cloudinary could not be reached. Check the API network connection and try again.",
+      );
+    }
+    if (!response.ok)
+      throw new HttpError(
+        503,
+        "MEDIA_CONFIGURATION_INVALID",
+        "Cloudinary rejected the configured cloud name or API credentials.",
+      );
+    this.verifiedAt = Date.now();
+  }
+
   private sign(parameters: Record<string, string | number>): string {
     const payload = Object.entries(parameters)
       .sort(([a], [b]) => a.localeCompare(b))

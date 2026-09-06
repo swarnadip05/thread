@@ -10,6 +10,7 @@ export function DesktopMegaNavigation({ items }: { items: readonly NavigationIte
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const triggers = useRef<(HTMLButtonElement | null)[]>([]);
   const activeItem = items.find((item) => item.id === activeId) ?? null;
+  const departmentHref = activeItem?.audience ? `/${activeItem.audience}` : "/search";
 
   const cancelClose = () => {
     if (closeTimer.current) clearTimeout(closeTimer.current);
@@ -103,6 +104,12 @@ export function DesktopMegaNavigation({ items }: { items: readonly NavigationIte
               gridTemplateColumns: `repeat(${Math.min(activeItem.groups.length, 4)}, minmax(0, 1fr))${activeItem.promotionalTile ? " minmax(15rem, 1.2fr)" : ""}`,
             }}
           >
+            <section>
+              <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Shop</h2>
+              <Link className="focus-ring mt-5 inline-block rounded-sm text-sm font-semibold underline-offset-4 hover:underline" href={departmentHref}>
+                Shop all {activeItem.label}
+              </Link>
+            </section>
             {activeItem.groups.map((group) => (
               <section key={group.id}>
                 <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">

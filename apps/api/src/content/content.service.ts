@@ -46,7 +46,10 @@ export class ContentService {
 
   getPublicNavigation(): Promise<PublicNavigationDto> {
     return this.navigationCache.get(async () => {
-      const settings = await this.requireSettings();
+      const [settings, categories] = await Promise.all([this.requireSettings(), this.categories.list()]);
+      const activeCategories = new Map(
+        categories.filter((category) => category.active).map((category) => [category.slug, category]),
+      );
       return {
         version: settings.navigation.version,
         items: settings.navigation.items
@@ -57,11 +60,23 @@ export class ContentService {
             label: item.label,
             audience: item.audience,
             sortOrder: item.sortOrder,
-            groups: item.groups.map((group) => ({
-              id: group.id,
-              heading: group.heading,
-              links: group.links.map((link) => ({ ...link })),
-            })),
+            groups: item.groups
+              .map((group) => ({
+                id: group.id,
+                heading: group.heading,
+                links: group.links.filter((link) => {
+                  const match = /^\/category\/([^/?#]+)/.exec(link.href);
+                  if (!match) return true;
+                  const category = activeCategories.get(decodeURIComponent(match[1]!));
+                  return Boolean(
+                    category &&
+                      (category.audience === "unisex" ||
+                        item.audience === "unisex" ||
+                        category.audience === item.audience),
+                  );
+                }).map((link) => ({ ...link })),
+              }))
+              .filter((group) => group.links.length > 0),
             ...(item.promotionalTile?.imageUrl.startsWith("/assets/approved/")
               ? { promotionalTile: { ...item.promotionalTile } }
               : {}),

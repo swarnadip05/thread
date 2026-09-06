@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { readRuntime } from "./runtime";
+import { readRuntime } from "./runtime.js";
 
 test("admin creates, edits, publishes and archives a product visible across the storefront", async ({
   page,

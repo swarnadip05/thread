@@ -85,6 +85,10 @@ class MemoryAudit implements AuditRepository {
 
 class MemoryMedia implements MediaProvider {
   deleted: string[] = [];
+  verified = false;
+  async verifyConfiguration(): Promise<void> {
+    this.verified = true;
+  }
   createSignedUpload(): SignedUpload {
     return {
       apiKey: "key",
@@ -507,6 +511,7 @@ describe("catalogue authorization and stock", () => {
         expect(body.data.constraints.svgAllowed).toBe(false);
         expect(body.data).not.toHaveProperty("apiSecret");
       });
+    expect(setup.media.verified).toBe(true);
   });
 
   it("records inventory adjustments with a reason and prevents negative stock", async () => {

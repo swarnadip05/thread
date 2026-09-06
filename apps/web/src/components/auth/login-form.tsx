@@ -5,7 +5,6 @@ import { Button, FieldLabel, Input } from "@thread/ui";
 import type { AuthSessionDto } from "@thread/types";
 import { loginSchema, type LoginInput } from "@thread/validation";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState, useSyncExternalStore } from "react";
 import { useForm } from "react-hook-form";
 import { authRequest, API_URL } from "@/auth/auth-client";
@@ -14,6 +13,8 @@ import { AuthHeading } from "./auth-heading";
 import { PhoneLoginForm } from "./phone-login-form";
 
 const subscribeToHydration = () => () => {};
+const clientHydrationSnapshot = () => true;
+const serverHydrationSnapshot = () => false;
 
 export function LoginForm({
   googleEnabled,
@@ -24,10 +25,13 @@ export function LoginForm({
   googleEnabled: boolean;
   phoneEnabled: boolean;
 }) {
-  const hydrated = useSyncExternalStore(subscribeToHydration, () => true, () => false);
+  const hydrated = useSyncExternalStore(
+    subscribeToHydration,
+    clientHydrationSnapshot,
+    serverHydrationSnapshot,
+  );
   const [mode, setMode] = useState<"email" | "phone">("email");
   const [serverError, setServerError] = useState("");
-  const router = useRouter();
   const auth = useAuth();
   const {
     formState: { errors, isSubmitting },
@@ -67,7 +71,7 @@ export function LoginForm({
             : roles.includes("support_agent")
               ? "/admin/orders"
               : "/account";
-      router.push(destination);
+      window.location.assign(destination);
     } catch (error) {
       setServerError(
         error instanceof Error ? error.message : "Sign in is unavailable. Please try again.",
@@ -114,7 +118,7 @@ export function LoginForm({
         <PhoneLoginForm
           onAuthenticated={(session) => {
             auth.establish(session);
-            router.push("/account");
+            window.location.assign("/account");
           }}
         />
       ) : (

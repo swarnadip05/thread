@@ -2,12 +2,11 @@
 
 import { IconButton } from "@thread/ui";
 import type { PublicNavigationDto, PublicSiteSettingsDto } from "@thread/types";
-import { Heart, Home, Menu, Search, ShoppingBag, UserRound, X } from "lucide-react";
+import { Heart, Home, Menu, Search, UserRound, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 
 import { useAuth } from "@/auth/auth-provider";
-import { readCart } from "@/checkout/cart-storage";
 import { DesktopMegaNavigation } from "./desktop-mega-navigation";
 import { MobileCategoryNavigation } from "./mobile-category-navigation";
 import { SearchBox } from "../discovery/search-box";
@@ -24,10 +23,6 @@ function subscribeToCommerceIndicators(onStoreChange: () => void): () => void {
     window.removeEventListener("thread:cart-changed", onStoreChange);
     window.removeEventListener("thread:wishlist-changed", onStoreChange);
   };
-}
-
-function cartCount(): number {
-  return readCart().reduce((total, line) => total + line.quantity, 0);
 }
 
 function wishlistCount(): number {
@@ -72,7 +67,6 @@ export function SiteHeader({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const auth = useAuth();
   const { refresh, status: authStatus } = auth;
-  const cartItems = useSyncExternalStore(subscribeToCommerceIndicators, cartCount, () => 0);
   const wishlistItems = useSyncExternalStore(subscribeToCommerceIndicators, wishlistCount, () => 0);
   const announcement =
     settings.announcement.text === legacySupportAnnouncement
@@ -129,14 +123,6 @@ export function SiteHeader({
                 <Heart aria-hidden="true" className="size-5" />
                 <CountBadge count={wishlistItems} />
               </Link>
-              <Link
-                aria-label={`Cart, ${cartItems} ${cartItems === 1 ? "item" : "items"}`}
-                className="focus-ring relative grid size-11 place-items-center rounded-full hover:bg-ink/7"
-                href="/checkout"
-              >
-                <ShoppingBag aria-hidden="true" className="size-5" />
-                <CountBadge count={cartItems} />
-              </Link>
             </div>
           </div>
           <div className="shell-container flex h-16 items-center gap-1 lg:hidden">
@@ -171,14 +157,6 @@ export function SiteHeader({
               >
                 <UserRound aria-hidden="true" className="size-5" />
               </Link>
-              <Link
-                aria-label={`Cart, ${cartItems} ${cartItems === 1 ? "item" : "items"}`}
-                className="focus-ring relative grid size-11 place-items-center rounded-full hover:bg-ink/7"
-                href="/checkout"
-              >
-                <ShoppingBag aria-hidden="true" className="size-5" />
-                <CountBadge count={cartItems} />
-              </Link>
             </div>
           </div>
           {searchOpen ? (
@@ -198,7 +176,7 @@ export function SiteHeader({
       </div>
       <nav
         aria-label="Quick navigation"
-        className="fixed inset-x-0 bottom-0 z-header grid h-16 grid-cols-5 border-t border-ink/10 bg-paper pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_24px_rgb(17_17_17/0.08)] lg:hidden"
+        className="fixed inset-x-0 bottom-0 z-header grid h-16 grid-cols-4 border-t border-ink/10 bg-paper pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_24px_rgb(17_17_17/0.08)] lg:hidden"
       >
         <QuickLink href="/" icon={<Home aria-hidden="true" />} label="Home" />
         <QuickButton
@@ -216,12 +194,6 @@ export function SiteHeader({
           href="/account"
           icon={<Heart aria-hidden="true" />}
           label="Wishlist"
-        />
-        <QuickLink
-          count={cartItems}
-          href="/checkout"
-          icon={<ShoppingBag aria-hidden="true" />}
-          label="Cart"
         />
       </nav>
     </>

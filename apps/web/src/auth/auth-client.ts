@@ -1,6 +1,13 @@
 import type { ApiResponse, AuthSessionDto } from "@thread/types";
 
-export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+const configuredApiUrl = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000").replace(
+  /\/+$/,
+  "",
+);
+
+// NEXT_PUBLIC_API_URL is the API origin. Keep older local files that included
+// `/api/v1` from duplicating the route prefix while they are being migrated.
+export const API_URL = configuredApiUrl.replace(/\/api\/v1$/, "");
 export const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || API_URL;
 
 function csrfToken(): string {

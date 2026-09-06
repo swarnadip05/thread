@@ -140,20 +140,23 @@ function parseGoogleOAuth(environment: NodeJS.ProcessEnv): ApiConfig["googleOAut
 }
 
 function parseCloudinary(environment: NodeJS.ProcessEnv): ApiConfig["cloudinary"] {
-  const values = [
-    environment.CLOUDINARY_CLOUD_NAME,
-    environment.CLOUDINARY_API_KEY,
-    environment.CLOUDINARY_API_SECRET,
-  ];
-  if (values.every((value) => !value)) return undefined;
-  if (values.some((value) => !value))
+  const cloudName = environment.CLOUDINARY_CLOUD_NAME?.trim().toLowerCase() ?? "";
+  const apiKey = environment.CLOUDINARY_API_KEY?.trim() ?? "";
+  const apiSecret = environment.CLOUDINARY_API_SECRET?.trim() ?? "";
+  if (!cloudName && !apiKey && !apiSecret) return undefined;
+  if (!cloudName || !apiKey || !apiSecret)
     throw new Error(
       "All Cloudinary environment variables are required when media uploads are enabled.",
     );
+  if (!/^[a-z][a-z0-9-]{1,127}$/.test(cloudName))
+    throw new Error("CLOUDINARY_CLOUD_NAME must be a valid Cloudinary cloud identifier.");
+  if (apiKey.length < 8) throw new Error("CLOUDINARY_API_KEY must contain at least 8 characters.");
+  if (apiSecret.length < 16)
+    throw new Error("CLOUDINARY_API_SECRET must contain at least 16 characters.");
   return {
-    cloudName: values[0]!,
-    apiKey: values[1]!,
-    apiSecret: values[2]!,
+    cloudName,
+    apiKey,
+    apiSecret,
     folder: environment.CLOUDINARY_PRODUCT_FOLDER?.trim() || "thread/products",
   };
 }

@@ -9,7 +9,13 @@ import { useCallback, useEffect, useState, type FormEvent, type InputHTMLAttribu
 import { apiRequest } from "@/auth/auth-client";
 import { useAuth } from "@/auth/auth-provider";
 import { useAdminUnsavedChanges } from "./admin-unsaved-changes";
-import { attachImage, descriptionHtml, rupeesToPaise, slugify } from "./product-editor-helpers";
+import {
+  attachImage,
+  descriptionHtml,
+  requestImageUpload,
+  rupeesToPaise,
+  slugify,
+} from "./product-editor-helpers";
 
 const fieldClass = "min-h-11 w-full rounded-md border border-ink/20 bg-paper px-3 text-sm text-ink";
 interface Option {
@@ -279,43 +285,42 @@ export function ProductEditor({ productId }: { productId?: string }) {
       )
         throw new Error("Images must be JPEG, PNG, WebP or AVIF, up to 15 MB each.");
       if (files.length && !text("imageAlt")) throw new Error("Enter descriptive image alt text.");
-      // Check provider availability before creating a record, so configuration errors preserve the form.
-      if (files.length)
-        await apiRequest("/admin/media/upload-signature", accessToken, { method: "POST" });
+      // Check provider availability before changing the product, so configuration errors preserve the form.
+      const uploadSignature = files.length ? await requestImageUpload(accessToken) : undefined;
       const requestedStatus = input.data.status;
-      saved = await apiRequest<AdminProductDto>(
-        product ? `/admin/products/${product.id}` : "/admin/products",
-        accessToken,
-        {
-          method: product ? "PATCH" : "POST",
+      if (!product) {
+        saved = await apiRequest<AdminProductDto>("/admin/products", accessToken, {
+          method: "POST",
           body: JSON.stringify({
             ...input.data,
-            status: !product && files.length ? "draft" : requestedStatus,
+            status: files.length ? "draft" : requestedStatus,
           }),
-        },
-      );
-      establish(saved);
-      setDirty(false);
+        });
+        establish(saved);
+      }
+      if (!saved) throw new Error("Product could not be prepared for image upload.");
       for (const [index, file] of files.entries()) {
-        await attachImage(
+        saved = await attachImage(
           saved.id,
           file,
           files.length > 1 ? `${text("imageAlt")} — view ${index + 1}` : text("imageAlt"),
           accessToken,
           !saved.media.length && index === 0,
+          uploadSignature,
         );
+        establish(saved);
       }
-      if (saved.status !== requestedStatus)
-        await apiRequest(`/admin/products/${saved.id}`, accessToken, {
-          method: "PATCH",
-          body: JSON.stringify({ status: requestedStatus }),
-        });
-      establish(await apiRequest<AdminProductDto>(`/admin/products/${saved.id}`, accessToken));
+      saved = await apiRequest<AdminProductDto>(`/admin/products/${saved.id}`, accessToken, {
+        method: "PATCH",
+        body: JSON.stringify(product ? input.data : { status: requestedStatus }),
+      });
+      establish(saved);
+      setDirty(false);
       setNotice("Product saved. Active products are available in the storefront catalogue.");
       window.history.replaceState(null, "", `/admin/products/${saved.id}/edit`);
     } catch (reason) {
       setError(
-        `${saved && saved !== product ? "Product details were saved. " : ""}${reason instanceof Error ? reason.message : "Product could not be saved."}`,
+        `${saved && saved !== product ? "Some product changes may already have been saved. " : ""}${reason instanceof Error ? reason.message : "Product could not be saved."}`,
       );
     } finally {
       setBusy(false);

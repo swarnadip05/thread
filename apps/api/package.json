@@ -8,6 +8,7 @@
     "dev:worker": "tsx watch src/worker.ts",
     "build": "tsc -p tsconfig.build.json",
     "bootstrap:admin": "tsx src/auth/cli/bootstrap-admin.ts",
+    "reset:admin-password": "tsx src/auth/cli/reset-admin-password.ts",
     "start": "node dist/server.js",
     "start:worker": "node dist/worker.js",
     "lint": "eslint src test",

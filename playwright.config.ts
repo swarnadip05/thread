@@ -77,7 +77,7 @@ export default defineConfig({
       url: `${apiOrigin}/health/ready`,
     },
     {
-      command: `pnpm --filter @thread/web exec next dev --port ${new URL(webOrigin).port}`,
+      command: `pnpm --filter @thread/web exec next dev --webpack --port ${new URL(webOrigin).port}`,
       env: {
         E2E_NEXT_DIST_DIR: ".next-e2e",
         NEXT_PUBLIC_SOCKET_URL: apiOrigin,

@@ -5,6 +5,7 @@ export type AnalyticsEventName =
   | "select_item"
   | "view_item"
   | "add_to_cart"
+  | "whatsapp_order"
   | "view_cart"
   | "begin_checkout"
   | "add_payment_info"

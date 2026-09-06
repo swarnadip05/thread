@@ -55,6 +55,11 @@ export async function DiscoveryPage({
   const clearHref = clearParameters.size
     ? `${config.pathname}?${clearParameters.toString()}`
     : config.pathname;
+  const audience = config.fixed?.audience ?? parameters.get("audience");
+  const departmentHref = audience && ["men", "women", "accessories"].includes(audience)
+    ? `/${audience}`
+    : clearHref;
+  const departmentLabel = audience === "men" ? "men's" : audience === "women" ? "women's" : audience;
 
   return (
     <section className="shell-container py-8 sm:py-12" aria-labelledby="discovery-heading">
@@ -127,13 +132,13 @@ export async function DiscoveryPage({
               action={
                 <Link
                   className="focus-ring inline-flex min-h-11 items-center rounded-md bg-ink px-5 text-sm font-semibold text-paper"
-                  href={config.pathname}
+                  href={departmentHref}
                 >
-                  Clear filters
+                  {departmentLabel ? `Browse all ${departmentLabel} styles` : "Clear filters"}
                 </Link>
               }
-              description="Try removing a filter or searching for a different style."
-              title="No styles match these filters"
+              description={departmentLabel ? `There are no ${departmentLabel} styles in this category yet.` : "Try removing a filter or searching for a different style."}
+              title="No styles here yet"
             />
           )}
         </div>

@@ -10,7 +10,7 @@ import { ProductPurchasePanel } from "@/components/product/product-purchase-pane
 import { ProductReviews } from "@/components/product/product-reviews";
 import { RecentlyViewed } from "@/components/product/recently-viewed";
 import { loadProductDetail, loadProductSlugRedirect } from "@/services/catalogue";
-import { loadContentPage } from "@/services/site-settings";
+import { loadContentPage, loadPublicSettings } from "@/services/site-settings";
 import { ProductViewAnalytics } from "@/analytics/product-view-analytics";
 import { jsonLd, siteUrl } from "@/seo/site";
 
@@ -35,10 +35,11 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function ProductDetailPage({ params }: PageProps) {
   const { slug } = await params;
-  const [data, shipping, returns] = await Promise.all([
+  const [data, shipping, returns, settings] = await Promise.all([
     loadProductDetail(slug),
     loadContentPage("shipping-delivery"),
     loadContentPage("returns-exchanges"),
+    loadPublicSettings(),
   ]);
   if (!data) {
     const redirectSlug = await loadProductSlugRedirect(slug);
@@ -136,7 +137,12 @@ export default async function ProductDetailPage({ params }: PageProps) {
             )}
           </div>
           <div className="mt-6">
-            <ProductPurchasePanel maxQuantity={data.purchaseConfig.maxQuantity} product={product} />
+            <ProductPurchasePanel
+              maxQuantity={data.purchaseConfig.maxQuantity}
+              product={product}
+              productUrl={`${siteUrl}/shop/${encodeURIComponent(product.slug)}`}
+              whatsappNumber={settings.whatsappNumber || settings.phone}
+            />
           </div>
         </section>
       </div>

@@ -7,12 +7,12 @@ import type {
   ProductVariantDto,
 } from "@thread/types";
 import { Button, Drawer, Input, Price, useToast } from "@thread/ui";
-import { Heart, Minus, Plus, Ruler, Truck } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { Heart, MessageCircle, Minus, Plus, Ruler, Truck } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { readCart, writeCart, type StoredCartLine } from "@/checkout/cart-storage";
 import { useAnalytics } from "@/analytics/analytics-provider";
+import { buildWhatsAppOrderUrl } from "./whatsapp-order";
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 const WISHLIST_KEY = "thread:wishlist:v1";
@@ -38,20 +38,24 @@ function discount(variant: ProductVariantDto): number {
 export function ProductPurchasePanel({
   maxQuantity,
   product,
+  productUrl,
+  whatsappNumber,
 }: {
   maxQuantity: number;
   product: ProductDetailDto;
+  productUrl: string;
+  whatsappNumber: string;
 }) {
   const active = product.variants.filter((variant) => variant.status === "active");
   const [colour, setColour] = useState(active[0]?.colour ?? "");
   const availableForColour = active.filter((variant) => variant.colour === colour);
-  const [size, setSize] = useState(availableForColour[0]?.size ?? "");
+  const [size, setSize] = useState("");
   const variant =
     availableForColour.find((item) => item.size === size) ?? availableForColour[0] ?? active[0];
   const [quantity, setQuantity] = useState(1);
   const [wishlisted, setWishlisted] = useState(false);
+  const [selectionError, setSelectionError] = useState("");
   const { toast } = useToast();
-  const router = useRouter();
   const { track } = useAnalytics();
   const colours = Array.from(new Map(active.map((item) => [item.colour, item])).values());
   const quantityLimit = Math.min(maxQuantity, variant?.availableStock ?? 0);
@@ -59,14 +63,18 @@ export function ProductPurchasePanel({
     queueMicrotask(() => setWishlisted(readList<string>(WISHLIST_KEY).includes(product.id)));
   }, [product.id]);
 
-  const addToCart = (buyNow = false) => {
-    if (!variant || variant.availableStock < 1) return;
+  const selectedVariant = availableForColour.find((item) => item.size === size);
+  const addToCart = () => {
+    if (!selectedVariant || selectedVariant.availableStock < 1) {
+      setSelectionError("Select an available size before adding this item.");
+      return;
+    }
     const lines = readCart();
-    const existing = lines.find((line) => line.variantId === variant.id);
+    const existing = lines.find((line) => line.variantId === selectedVariant.id);
     const nextQuantity = Math.min(quantityLimit, (existing?.quantity ?? 0) + quantity);
     const next: StoredCartLine[] = existing
       ? lines.map((line) =>
-          line.variantId === variant.id ? { ...line, quantity: nextQuantity } : line,
+          line.variantId === selectedVariant.id ? { ...line, quantity: nextQuantity } : line,
         )
       : [
           ...lines,
@@ -74,9 +82,9 @@ export function ProductPurchasePanel({
             productId: product.id,
             slug: product.slug,
             title: product.title,
-            variantId: variant.id,
+            variantId: selectedVariant.id,
             quantity,
-            observedUnitPricePaise: variant.salePricePaise,
+            observedUnitPricePaise: selectedVariant.salePricePaise,
           },
         ];
     writeCart(next);
@@ -84,16 +92,34 @@ export function ProductPurchasePanel({
       item_id: product.id,
       item_name: product.title,
       quantity,
-      value_paise: variant.salePricePaise * quantity,
+      value_paise: selectedVariant.salePricePaise * quantity,
     });
     toast({
-      title: buyNow ? "Ready for checkout" : "Added to cart",
-      description: buyNow
-        ? "Your selection is saved. Continue to confirm delivery and totals."
-        : `${quantity} × ${variant.colour}, ${variant.size}`,
+      title: "Added to cart",
+      description: `${quantity} × ${selectedVariant.colour}, ${selectedVariant.size}`,
       variant: "success",
     });
-    if (buyNow) router.push("/checkout");
+  };
+
+  const buyOnWhatsApp = () => {
+    if (!selectedVariant || selectedVariant.availableStock < 1) {
+      setSelectionError("Select an available size before ordering on WhatsApp.");
+      return;
+    }
+    const url = buildWhatsAppOrderUrl({
+      phone: whatsappNumber,
+      product,
+      productUrl,
+      quantity,
+      variant: selectedVariant,
+    });
+    if (!url) {
+      setSelectionError("WhatsApp ordering is temporarily unavailable. Please contact support.");
+      return;
+    }
+    setSelectionError("");
+    track("whatsapp_order", { item_id: product.id, item_name: product.title, quantity });
+    window.open(url, "_blank", "noopener,noreferrer");
   };
 
   const toggleWishlist = () => {
@@ -149,7 +175,8 @@ export function ProductPurchasePanel({
               key={item.colour}
               onClick={() => {
                 setColour(item.colour);
-                setSize(active.find((candidate) => candidate.colour === item.colour)?.size ?? "");
+                setSize("");
+                setSelectionError("");
                 setQuantity(1);
               }}
               type="button"
@@ -206,13 +233,14 @@ export function ProductPurchasePanel({
         <div className="mt-3 flex flex-wrap gap-2">
           {availableForColour.map((item) => (
             <button
-              aria-pressed={item.size === variant.size}
+              aria-pressed={item.size === size}
               className="focus-ring min-h-11 min-w-12 rounded-md border px-3 text-sm font-semibold aria-pressed:border-ink aria-pressed:bg-ink aria-pressed:text-paper disabled:text-muted disabled:line-through"
               disabled={item.availableStock < 1}
               key={item.id}
               onClick={() => {
                 setSize(item.size);
                 setQuantity(1);
+                setSelectionError("");
               }}
               type="button"
             >
@@ -220,6 +248,7 @@ export function ProductPurchasePanel({
             </button>
           ))}
         </div>
+        {selectionError ? <p className="mt-3 text-sm font-medium text-error" role="alert">{selectionError}</p> : null}
       </fieldset>
 
       <p
@@ -259,17 +288,14 @@ export function ProductPurchasePanel({
       </div>
 
       <div className="mt-6 grid grid-cols-[1fr_auto] gap-2 sm:grid-cols-[1fr_1fr_auto]">
-        <Button disabled={variant.availableStock < 1} onClick={() => addToCart(false)}>
-          Add to cart
-        </Button>
         <Button
-          className="hidden sm:inline-flex"
           disabled={variant.availableStock < 1}
-          onClick={() => addToCart(true)}
+          onClick={buyOnWhatsApp}
           variant="gold"
         >
-          Buy now
+          <MessageCircle aria-hidden="true" className="size-4" /> Buy on WhatsApp
         </Button>
+        <Button className="hidden sm:inline-flex" disabled={variant.availableStock < 1} onClick={addToCart} variant="outline">Add to cart</Button>
         <Button
           aria-label={wishlisted ? "Remove from wishlist" : "Add to wishlist"}
           onClick={toggleWishlist}
@@ -280,16 +306,14 @@ export function ProductPurchasePanel({
       </div>
       <DeliveryChecker />
       <div className="fixed inset-x-0 bottom-16 z-header grid grid-cols-2 gap-2 border-t bg-paper p-3 shadow-raised sm:hidden">
-        <Button disabled={variant.availableStock < 1} onClick={() => addToCart(false)}>
-          Add to cart
-        </Button>
         <Button
           disabled={variant.availableStock < 1}
-          onClick={() => addToCart(true)}
+          onClick={buyOnWhatsApp}
           variant="gold"
         >
-          Buy now
+          <MessageCircle aria-hidden="true" className="size-4" /> WhatsApp
         </Button>
+        <Button disabled={variant.availableStock < 1} onClick={addToCart} variant="outline">Add to cart</Button>
       </div>
     </div>
   );
