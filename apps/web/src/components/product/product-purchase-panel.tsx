@@ -14,7 +14,11 @@ import { readCart, writeCart, type StoredCartLine } from "@/checkout/cart-storag
 import { useAnalytics } from "@/analytics/analytics-provider";
 import { buildWhatsAppOrderUrl } from "./whatsapp-order";
 
-const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+const configuredApiUrl = process.env.NEXT_PUBLIC_API_URL;
+const apiUrl =
+  process.env.NODE_ENV === "production" && /localhost|127\.0\.0\.1/.test(configuredApiUrl ?? "")
+    ? null
+    : configuredApiUrl || (process.env.NODE_ENV === "production" ? null : "http://localhost:4000");
 const WISHLIST_KEY = "thread:wishlist:v1";
 
 function readList<T>(key: string): T[] {
@@ -248,7 +252,11 @@ export function ProductPurchasePanel({
             </button>
           ))}
         </div>
-        {selectionError ? <p className="mt-3 text-sm font-medium text-error" role="alert">{selectionError}</p> : null}
+        {selectionError ? (
+          <p className="mt-3 text-sm font-medium text-error" role="alert">
+            {selectionError}
+          </p>
+        ) : null}
       </fieldset>
 
       <p
@@ -288,14 +296,17 @@ export function ProductPurchasePanel({
       </div>
 
       <div className="mt-6 grid grid-cols-[1fr_auto] gap-2 sm:grid-cols-[1fr_1fr_auto]">
-        <Button
-          disabled={variant.availableStock < 1}
-          onClick={buyOnWhatsApp}
-          variant="gold"
-        >
+        <Button disabled={variant.availableStock < 1} onClick={buyOnWhatsApp} variant="gold">
           <MessageCircle aria-hidden="true" className="size-4" /> Buy on WhatsApp
         </Button>
-        <Button className="hidden sm:inline-flex" disabled={variant.availableStock < 1} onClick={addToCart} variant="outline">Add to cart</Button>
+        <Button
+          className="hidden sm:inline-flex"
+          disabled={variant.availableStock < 1}
+          onClick={addToCart}
+          variant="outline"
+        >
+          Add to cart
+        </Button>
         <Button
           aria-label={wishlisted ? "Remove from wishlist" : "Add to wishlist"}
           onClick={toggleWishlist}
@@ -306,14 +317,12 @@ export function ProductPurchasePanel({
       </div>
       <DeliveryChecker />
       <div className="fixed inset-x-0 bottom-16 z-header grid grid-cols-2 gap-2 border-t bg-paper p-3 shadow-raised sm:hidden">
-        <Button
-          disabled={variant.availableStock < 1}
-          onClick={buyOnWhatsApp}
-          variant="gold"
-        >
+        <Button disabled={variant.availableStock < 1} onClick={buyOnWhatsApp} variant="gold">
           <MessageCircle aria-hidden="true" className="size-4" /> WhatsApp
         </Button>
-        <Button disabled={variant.availableStock < 1} onClick={addToCart} variant="outline">Add to cart</Button>
+        <Button disabled={variant.availableStock < 1} onClick={addToCart} variant="outline">
+          Add to cart
+        </Button>
       </div>
     </div>
   );
@@ -324,6 +333,14 @@ function DeliveryChecker() {
   const [result, setResult] = useState<DeliveryCheckDto | null>(null);
   const [pending, setPending] = useState(false);
   const check = async () => {
+    if (!apiUrl) {
+      setResult({
+        postalCode,
+        status: "confirmation_required",
+        message: "Please confirm delivery availability in your WhatsApp order.",
+      });
+      return;
+    }
     setPending(true);
     setResult(null);
     try {

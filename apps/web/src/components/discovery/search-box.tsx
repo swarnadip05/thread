@@ -8,7 +8,11 @@ import type { ApiResponse, ProductSearchSuggestionsDto } from "@thread/types";
 import { SearchInput } from "@thread/ui";
 import { Clock3, Search, X } from "lucide-react";
 
-const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+const configuredApiUrl = process.env.NEXT_PUBLIC_API_URL;
+const apiUrl =
+  process.env.NODE_ENV === "production" && /localhost|127\.0\.0\.1/.test(configuredApiUrl ?? "")
+    ? null
+    : configuredApiUrl || (process.env.NODE_ENV === "production" ? null : "http://localhost:4000");
 const recentSearchesKey = "thread:recent-searches";
 
 function readRecentSearches(): readonly string[] {
@@ -37,7 +41,7 @@ export function SearchBox({
   const [suggestions, setSuggestions] = useState<ProductSearchSuggestionsDto | null>(null);
 
   useEffect(() => {
-    if (query.trim().length < 2) return;
+    if (query.trim().length < 2 || !apiUrl) return;
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
       void fetch(

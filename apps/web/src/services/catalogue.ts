@@ -7,8 +7,13 @@ import type {
   ProductReviewPageDto,
   ProductSummaryDto,
 } from "@thread/types";
+import { loadProductionDiscovery, loadProductionProduct } from "./production-catalogue";
 
-const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+const configuredApiUrl = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "");
+const apiUrl =
+  process.env.NODE_ENV === "production" && /localhost|127\.0\.0\.1/.test(configuredApiUrl ?? "")
+    ? null
+    : configuredApiUrl || (process.env.NODE_ENV === "production" ? null : "http://localhost:4000");
 
 export interface DiscoveryData {
   readonly page: ProductPageDto;
@@ -31,6 +36,7 @@ export async function loadProductSlugRedirect(slug: string): Promise<string | nu
 }
 
 async function catalogueGet<T>(path: string): Promise<T | null> {
+  if (!apiUrl) return null;
   try {
     const response = await fetch(`${apiUrl}/api/v1${path}`, {
       cache: "no-store",
@@ -52,7 +58,7 @@ export async function loadProductDetail(slug: string): Promise<ProductDetailData
     catalogueGet<ProductReviewPageDto>(`/catalog/products/${safeSlug}/reviews?limit=10`),
     catalogueGet<ProductPurchaseConfigDto>("/catalog/config"),
   ]);
-  if (!product) return null;
+  if (!product) return loadProductionProduct(slug);
   return {
     product,
     related: related ?? [],
@@ -71,6 +77,7 @@ export async function loadProductDetail(slug: string): Promise<ProductDetailData
 export async function loadDiscoveryData(
   parameters: URLSearchParams,
 ): Promise<DiscoveryData | null> {
+  if (!apiUrl) return loadProductionDiscovery(parameters);
   const query = parameters.toString();
   try {
     const [productsResponse, facetsResponse] = await Promise.all([
@@ -83,13 +90,15 @@ export async function loadDiscoveryData(
         signal: AbortSignal.timeout(4_000),
       }),
     ]);
-    if (!productsResponse.ok || !facetsResponse.ok) return null;
+    if (!productsResponse.ok || !facetsResponse.ok) return loadProductionDiscovery(parameters);
     const [products, facets] = (await Promise.all([
       productsResponse.json(),
       facetsResponse.json(),
     ])) as [ApiResponse<ProductPageDto>, ApiResponse<ProductFacetsDto>];
-    return products.success && facets.success ? { page: products.data, facets: facets.data } : null;
+    return products.success && facets.success
+      ? { page: products.data, facets: facets.data }
+      : loadProductionDiscovery(parameters);
   } catch {
-    return null;
+    return loadProductionDiscovery(parameters);
   }
 }

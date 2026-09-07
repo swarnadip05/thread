@@ -20,10 +20,16 @@ export function ProductReviews({
 }) {
   const [reviews, setReviews] = useState(initialReviews);
   const [ratingFilter, setRatingFilter] = useState<number | undefined>();
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+  const configuredApiUrl = process.env.NEXT_PUBLIC_API_URL;
+  const apiUrl =
+    process.env.NODE_ENV === "production" && /localhost|127\.0\.0\.1/.test(configuredApiUrl ?? "")
+      ? null
+      : configuredApiUrl ||
+        (process.env.NODE_ENV === "production" ? null : "http://localhost:4000");
 
   const filter = async (rating?: number, page = 1) => {
     setRatingFilter(rating);
+    if (!apiUrl) return;
     const query = new URLSearchParams({ limit: "10", page: String(page) });
     if (rating) query.set("rating", String(rating));
     const response = await fetch(
