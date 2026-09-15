@@ -12,13 +12,9 @@ import { useEffect, useState } from "react";
 
 import { readCart, writeCart, type StoredCartLine } from "@/checkout/cart-storage";
 import { useAnalytics } from "@/analytics/analytics-provider";
+import { API_URL } from "@/config/api-url";
 import { buildWhatsAppOrderUrl } from "./whatsapp-order";
 
-const configuredApiUrl = process.env.NEXT_PUBLIC_API_URL;
-const apiUrl =
-  process.env.NODE_ENV === "production" && /localhost|127\.0\.0\.1/.test(configuredApiUrl ?? "")
-    ? null
-    : configuredApiUrl || (process.env.NODE_ENV === "production" ? null : "http://localhost:4000");
 const WISHLIST_KEY = "thread:wishlist:v1";
 
 function readList<T>(key: string): T[] {
@@ -333,7 +329,7 @@ function DeliveryChecker() {
   const [result, setResult] = useState<DeliveryCheckDto | null>(null);
   const [pending, setPending] = useState(false);
   const check = async () => {
-    if (!apiUrl) {
+    if (!API_URL) {
       setResult({
         postalCode,
         status: "confirmation_required",
@@ -344,7 +340,7 @@ function DeliveryChecker() {
     setPending(true);
     setResult(null);
     try {
-      const response = await fetch(`${apiUrl}/api/v1/catalog/delivery/check`, {
+      const response = await fetch(`${API_URL}/api/v1/catalog/delivery/check`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ postalCode }),

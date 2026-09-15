@@ -71,6 +71,7 @@ The root `dev` script starts web and API; the worker needs the second command.
 - Products: <http://localhost:3000/admin/products>
 - Add product: <http://localhost:3000/admin/products/new>
 - API readiness: <http://localhost:4000/health/ready>
+- Safe API/database status: <http://localhost:4000/api/v1/health>
 
 Use `localhost` consistently for web/API origins and cookies. If ports 3000 or 4000 are occupied, stop the conflicting process or deliberately change the web port, API port, CORS origins and web API/socket URLs together.
 
@@ -89,7 +90,7 @@ Use `localhost` consistently for web/API origins and cookies. If ports 3000 or 4
 | `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | Required only for uploading new images; set on API only             |
 | `CLOUDINARY_PRODUCT_FOLDER`                                            | `thread/products` by default                                        |
 
-Web: set `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_SOCKET_URL` to `http://localhost:4000`, and `NEXT_PUBLIC_SITE_URL` to `http://localhost:3000`. The setup command supplies these defaults. Google OAuth, SMS, SMTP and Razorpay credentials are optional for local admin/product work and are not required for mock checkout.
+Web: set `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_SOCKET_URL` to `http://localhost:4000`, and `NEXT_PUBLIC_SITE_URL` to `http://localhost:3000`. `NEXT_PUBLIC_USE_STATIC_CATALOGUE` defaults to `false`: the storefront reads the live catalogue API and shows an explicit error if it is unavailable. Set it to `true` only for an intentional, build-time emergency snapshot. The setup command supplies local defaults. Google OAuth, SMS, SMTP and Razorpay credentials are optional for local admin/product work and are not required for mock checkout.
 
 ## Checks
 

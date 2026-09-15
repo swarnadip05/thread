@@ -1,15 +1,8 @@
 import type { ApiResponse, AuthSessionDto } from "@thread/types";
+import { API_URL as configuredApiUrl } from "@/config/api-url";
 
-const environmentApiUrl = process.env.NEXT_PUBLIC_API_URL;
-const configuredApiUrl = (
-  process.env.NODE_ENV === "production" && /localhost|127\.0\.0\.1/.test(environmentApiUrl ?? "")
-    ? ""
-    : environmentApiUrl || (process.env.NODE_ENV === "production" ? "" : "http://localhost:4000")
-).replace(/\/+$/, "");
-
-// NEXT_PUBLIC_API_URL is the API origin. Keep older local files that included
-// `/api/v1` from duplicating the route prefix while they are being migrated.
-export const API_URL = configuredApiUrl.replace(/\/api\/v1$/, "");
+// Re-export the shared API origin so existing auth consumers retain their API.
+export const API_URL = configuredApiUrl;
 const environmentSocketUrl = process.env.NEXT_PUBLIC_SOCKET_URL;
 export const SOCKET_URL =
   process.env.NODE_ENV === "production" && /localhost|127\.0\.0\.1/.test(environmentSocketUrl ?? "")

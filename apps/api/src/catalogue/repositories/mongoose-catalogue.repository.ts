@@ -2,6 +2,7 @@ import mongoose, { Types } from "mongoose";
 import type {
   ProductDetailDto,
   ProductMediaDto,
+  ProductAudience,
   ProductStatus,
   ProductSummaryDto,
   ProductVariantDto,
@@ -144,14 +145,38 @@ export class MongooseCatalogueRepository implements CatalogueRepository {
   private async ensureAssignments(
     categoryIds: readonly string[] | undefined,
     collectionIds: readonly string[] | undefined,
+    productAudience?: ProductAudience,
+    requireActiveAssignments = false,
   ): Promise<void> {
     if (categoryIds) {
-      const count = await CategoryModel.countDocuments({ _id: { $in: categoryIds } });
-      if (count !== new Set(categoryIds).size) throw new Error("INVALID_PRODUCT_ASSIGNMENT");
+      const categories = await CategoryModel.find({ _id: { $in: categoryIds } })
+        .select("audience active")
+        .lean()
+        .exec();
+      if (categories.length !== new Set(categoryIds).size)
+        throw new Error("INVALID_PRODUCT_ASSIGNMENT");
+      if (
+        productAudience &&
+        categories.some(
+          (category) =>
+            category.audience !== "unisex" &&
+            productAudience !== "unisex" &&
+            category.audience !== productAudience,
+        )
+      )
+        throw new Error("INCOMPATIBLE_PRODUCT_CATEGORY");
+      if (requireActiveAssignments && categories.some((category) => !category.active))
+        throw new Error("INACTIVE_PRODUCT_ASSIGNMENT");
     }
     if (collectionIds) {
-      const count = await CollectionModel.countDocuments({ _id: { $in: collectionIds } });
-      if (count !== new Set(collectionIds).size) throw new Error("INVALID_PRODUCT_ASSIGNMENT");
+      const collections = await CollectionModel.find({ _id: { $in: collectionIds } })
+        .select("active")
+        .lean()
+        .exec();
+      if (collections.length !== new Set(collectionIds).size)
+        throw new Error("INVALID_PRODUCT_ASSIGNMENT");
+      if (requireActiveAssignments && collections.some((collection) => !collection.active))
+        throw new Error("INACTIVE_PRODUCT_ASSIGNMENT");
     }
   }
 
@@ -695,7 +720,12 @@ export class MongooseCatalogueRepository implements CatalogueRepository {
   }
 
   async create(input: ProductMutationInput, actorId?: string): Promise<AdminProductRecord> {
-    await this.ensureAssignments(input.categoryIds, input.collectionIds);
+    await this.ensureAssignments(
+      input.categoryIds,
+      input.collectionIds,
+      input.audience,
+      input.status === "active",
+    );
     let productId = "";
     await mongoose.connection.transaction(async (session) => {
       const product = new ProductModel({
@@ -750,11 +780,17 @@ export class MongooseCatalogueRepository implements CatalogueRepository {
   async update(id: string, input: ProductPatchMutation, actorId?: string) {
     if (!Types.ObjectId.isValid(id)) return null;
     const existing = await ProductModel.findById(id)
-      .select("status publishedAt slug previousSlugs")
+      .select("status publishedAt slug previousSlugs audience categoryIds collectionIds")
       .lean()
       .exec();
     if (!existing) return null;
-    await this.ensureAssignments(input.categoryIds, input.collectionIds);
+    const effectiveStatus = input.status ?? existing.status;
+    await this.ensureAssignments(
+      input.categoryIds ?? existing.categoryIds.map(String),
+      input.collectionIds ?? existing.collectionIds.map(String),
+      input.audience ?? existing.audience,
+      effectiveStatus === "active",
+    );
     const update = Object.fromEntries(
       Object.entries(input).filter((entry) => entry[1] !== undefined && entry[0] !== "variants"),
     ) as Record<string, unknown>;
@@ -865,8 +901,29 @@ export class MongooseCatalogueRepository implements CatalogueRepository {
     productIds: readonly string[],
     update: { status?: ProductStatus; categoryIds?: readonly string[] },
   ) {
-    await this.ensureAssignments(update.categoryIds, undefined);
     const ids = productIds.filter(Types.ObjectId.isValid);
+    const products = await ProductModel.find({ _id: { $in: ids } })
+      .select("audience categoryIds collectionIds status")
+      .lean()
+      .exec();
+    const validations = new Map<string, Promise<void>>();
+    for (const product of products) {
+      const categoryIds = update.categoryIds ?? product.categoryIds.map(String);
+      const collectionIds = product.collectionIds.map(String);
+      const active = (update.status ?? product.status) === "active";
+      const key = [
+        [...categoryIds].sort().join(","),
+        [...collectionIds].sort().join(","),
+        product.audience,
+        active ? "active" : "not-active",
+      ].join(":");
+      if (!validations.has(key))
+        validations.set(
+          key,
+          this.ensureAssignments(categoryIds, collectionIds, product.audience, active),
+        );
+    }
+    await Promise.all(validations.values());
     const $set: Record<string, unknown> = {};
     if (update.status) {
       $set.status = update.status;

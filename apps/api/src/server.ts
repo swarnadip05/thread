@@ -14,6 +14,7 @@ import {
   checkDatabaseHealth,
   connectDatabase,
   disconnectDatabase,
+  getDatabaseName,
   isDatabaseReady,
 } from "./database/connection.js";
 import { createLogger } from "./lib/logger.js";
@@ -81,6 +82,14 @@ const app = createApp({
     database: await checkDatabaseHealth(),
     queue: await jobs.isReady(),
   }),
+  healthDetails: async () => {
+    const database = getDatabaseName();
+    return {
+      mongodb: await checkDatabaseHealth(),
+      redis: await jobs.isReady(),
+      ...(database ? { database } : {}),
+    };
+  },
   maintenanceMode: async () => {
     if (maintenanceCache && maintenanceCache.expiresAt > Date.now()) return maintenanceCache.value;
     const settings = await SiteSettingsModel.findOne({ key: "default" })

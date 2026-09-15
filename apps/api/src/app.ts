@@ -14,6 +14,11 @@ import { HttpError } from "./middleware/error-handler.js";
 export interface AppDependencies {
   readonly isReady: () => boolean;
   readonly dependencyStatus?: () => Promise<Readonly<Record<string, boolean>>>;
+  readonly healthDetails?: () => Promise<{
+    readonly mongodb: boolean;
+    readonly redis: boolean;
+    readonly database?: string;
+  }>;
   readonly maintenanceMode?: () => Promise<boolean>;
   readonly logger: Logger;
   readonly authRouter?: Router;
@@ -92,12 +97,34 @@ export function createApp(dependencies: AppDependencies): Express {
       limit: 300,
       standardHeaders: "draft-8",
       legacyHeaders: false,
-      skip: (request) => request.path.startsWith("/health/"),
+      skip: (request) => request.path.startsWith("/health/") || request.path === "/api/v1/health",
     }),
   );
   app.use(rejectPrototypePollution);
   app.use(requireJsonContentType);
   app.use(express.json({ limit: "1mb", strict: true }));
+
+  app.get("/api/v1/health", async (request, response) => {
+    const details = dependencies.healthDetails
+      ? await dependencies.healthDetails()
+      : {
+          mongodb: dependencies.isReady(),
+          redis: false,
+        };
+    const apiReady = dependencies.isReady();
+    const ready = apiReady && details.mongodb && details.redis;
+    response.status(ready ? 200 : 503).json({
+      success: true,
+      data: {
+        api: apiReady ? "ok" : "unavailable",
+        mongodb: details.mongodb ? "connected" : "unavailable",
+        redis: details.redis ? "connected" : "unavailable",
+        database: details.database ?? "unavailable",
+        timestamp: new Date().toISOString(),
+        requestId: request.requestId,
+      },
+    });
+  });
 
   const maintenanceMode = dependencies.maintenanceMode;
   if (maintenanceMode)

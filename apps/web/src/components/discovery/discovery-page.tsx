@@ -8,6 +8,7 @@ import {
   type RawSearchParams,
 } from "@/discovery/url-state";
 import { loadDiscoveryData } from "@/services/catalogue";
+import { catalogueUnavailableMessage } from "@/config/api-url";
 import { DiscoveryToolbar } from "./discovery-toolbar";
 import { FilterPanel } from "./filter-panel";
 import { PaginationLinks } from "./pagination-links";
@@ -56,10 +57,10 @@ export async function DiscoveryPage({
     ? `${config.pathname}?${clearParameters.toString()}`
     : config.pathname;
   const audience = config.fixed?.audience ?? parameters.get("audience");
-  const departmentHref = audience && ["men", "women", "accessories"].includes(audience)
-    ? `/${audience}`
-    : clearHref;
-  const departmentLabel = audience === "men" ? "men's" : audience === "women" ? "women's" : audience;
+  const departmentHref =
+    audience && ["men", "women", "accessories"].includes(audience) ? `/${audience}` : clearHref;
+  const departmentLabel =
+    audience === "men" ? "men's" : audience === "women" ? "women's" : audience;
 
   return (
     <section className="shell-container py-8 sm:py-12" aria-labelledby="discovery-heading">
@@ -109,7 +110,7 @@ export async function DiscoveryPage({
         <div>
           {!data ? (
             <ErrorState
-              description="The catalogue service could not be reached. Please try again shortly."
+              description={catalogueUnavailableMessage}
               title="Products are temporarily unavailable"
             />
           ) : data.page.items.length ? (
@@ -137,7 +138,11 @@ export async function DiscoveryPage({
                   {departmentLabel ? `Browse all ${departmentLabel} styles` : "Clear filters"}
                 </Link>
               }
-              description={departmentLabel ? `There are no ${departmentLabel} styles in this category yet.` : "Try removing a filter or searching for a different style."}
+              description={
+                departmentLabel
+                  ? `There are no ${departmentLabel} styles in this category yet.`
+                  : "Try removing a filter or searching for a different style."
+              }
               title="No styles here yet"
             />
           )}

@@ -17,6 +17,12 @@ const apiEnvironment = {
   ACCESS_TOKEN_AUDIENCE: "thread-e2e-web",
   ACCESS_TOKEN_ISSUER: "thread-e2e-api",
   ACCESS_TOKEN_SECRET: process.env.E2E_ACCESS_TOKEN_SECRET,
+  // Test-only metadata validation for the product-media API. The E2E spec does
+  // not upload or delete remote Cloudinary assets.
+  CLOUDINARY_API_KEY: "thread-e2e-api-key",
+  CLOUDINARY_API_SECRET: "thread-e2e-api-secret-not-real",
+  CLOUDINARY_CLOUD_NAME: process.env.E2E_CLOUDINARY_CLOUD_NAME || "thread-e2e",
+  CLOUDINARY_PRODUCT_FOLDER: "thread/products",
   CORS_ORIGINS: webOrigin,
   EMAIL_PROVIDER: "local",
   HOST: "127.0.0.1",
@@ -83,6 +89,7 @@ export default defineConfig({
         NEXT_PUBLIC_SOCKET_URL: apiOrigin,
         NEXT_PUBLIC_API_URL: apiOrigin,
         NEXT_PUBLIC_SITE_URL: webOrigin,
+        NEXT_PUBLIC_USE_STATIC_CATALOGUE: "false",
       },
       reuseExistingServer: process.env.E2E_REUSE_SERVERS === "true",
       timeout: 120_000,

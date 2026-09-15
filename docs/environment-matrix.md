@@ -6,16 +6,17 @@ Values shown here are names or modes, never credentials. Store local values in i
 
 ## Web application
 
-| Variable                               | Local                     | Test            | Staging                                   | Production                      | Exposure and owner                                       |
-| -------------------------------------- | ------------------------- | --------------- | ----------------------------------------- | ------------------------------- | -------------------------------------------------------- |
-| `NEXT_PUBLIC_API_URL`                  | `http://127.0.0.1:4000`   | test API origin | staging API HTTPS origin                  | production API HTTPS origin     | Public, Vercel build time                                |
-| `NEXT_PUBLIC_SOCKET_URL`               | API origin                | test API origin | staging API HTTPS origin                  | production API HTTPS origin     | Public; Socket.IO upgrades HTTPS to secure WSS           |
-| `NEXT_PUBLIC_SITE_URL`                 | `http://127.0.0.1:3000`   | test web origin | Vercel staging/preview HTTPS origin       | canonical HTTPS domain          | Public                                                   |
-| `NEXT_PUBLIC_APP_ENV`                  | `local`                   | `test`          | `staging`                                 | `production`                    | Public environment label shown in the admin shell        |
-| `NEXT_PUBLIC_GOOGLE_AUTH_ENABLED`      | `false` unless configured | `false`         | approved setting                          | approved setting                | Public feature switch; server credentials remain private |
-| `NEXT_PUBLIC_PHONE_AUTH_ENABLED`       | `false` unless configured | `false`         | approved setting                          | approved setting                | Public feature switch                                    |
-| `NEXT_PUBLIC_ANALYTICS_PROVIDER`       | unset                     | unset           | approved non-production provider or unset | approved provider or unset      | Public; consent review required                          |
-| `NEXT_PUBLIC_ANALYTICS_MEASUREMENT_ID` | unset                     | unset           | staging property ID or unset              | production property ID or unset | Public identifier, not a secret                          |
+| Variable                               | Local                     | Test            | Staging                                   | Production                                | Exposure and owner                                       |
+| -------------------------------------- | ------------------------- | --------------- | ----------------------------------------- | ----------------------------------------- | -------------------------------------------------------- |
+| `NEXT_PUBLIC_API_URL`                  | `http://localhost:4000`   | test API origin | staging API HTTPS origin                  | production API HTTPS origin               | Public, Vercel build time                                |
+| `NEXT_PUBLIC_USE_STATIC_CATALOGUE`     | `false`                   | `false`         | `false` unless an approved emergency mode | `false` unless an approved emergency mode | Public, Vercel build time; never an implicit fallback    |
+| `NEXT_PUBLIC_SOCKET_URL`               | API origin                | test API origin | staging API HTTPS origin                  | production API HTTPS origin               | Public; Socket.IO upgrades HTTPS to secure WSS           |
+| `NEXT_PUBLIC_SITE_URL`                 | `http://127.0.0.1:3000`   | test web origin | Vercel staging/preview HTTPS origin       | canonical HTTPS domain                    | Public                                                   |
+| `NEXT_PUBLIC_APP_ENV`                  | `local`                   | `test`          | `staging`                                 | `production`                              | Public environment label shown in the admin shell        |
+| `NEXT_PUBLIC_GOOGLE_AUTH_ENABLED`      | `false` unless configured | `false`         | approved setting                          | approved setting                          | Public feature switch; server credentials remain private |
+| `NEXT_PUBLIC_PHONE_AUTH_ENABLED`       | `false` unless configured | `false`         | approved setting                          | approved setting                          | Public feature switch                                    |
+| `NEXT_PUBLIC_ANALYTICS_PROVIDER`       | unset                     | unset           | approved non-production provider or unset | approved provider or unset                | Public; consent review required                          |
+| `NEXT_PUBLIC_ANALYTICS_MEASUREMENT_ID` | unset                     | unset           | staging property ID or unset              | production property ID or unset           | Public identifier, not a secret                          |
 
 All `NEXT_PUBLIC_*` values are embedded in browser bundles. Never place a secret in one.
 

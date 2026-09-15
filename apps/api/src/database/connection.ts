@@ -17,6 +17,13 @@ export function isDatabaseReady(): boolean {
   return mongoose.connection.readyState === 1;
 }
 
+/** Returns only the currently connected database name, never connection credentials or a URI. */
+export function getDatabaseName(): string | undefined {
+  if (!isDatabaseReady()) return undefined;
+  const name = mongoose.connection.db?.databaseName?.trim();
+  return name || undefined;
+}
+
 export async function connectDatabase(uri: string, logger: Logger): Promise<void> {
   mongoose.set("strictQuery", true);
   // Repositories construct filters from validated scalar inputs. Global sanitizeFilter

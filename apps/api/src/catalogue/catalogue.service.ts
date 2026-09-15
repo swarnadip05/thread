@@ -412,12 +412,17 @@ export class CatalogueService {
         );
       if (
         error instanceof Error &&
-        ["INVALID_PRODUCT_ASSIGNMENT", "INVALID_VARIANT_MATRIX"].includes(error.message)
+        [
+          "INVALID_PRODUCT_ASSIGNMENT",
+          "INVALID_VARIANT_MATRIX",
+          "INCOMPATIBLE_PRODUCT_CATEGORY",
+          "INACTIVE_PRODUCT_ASSIGNMENT",
+        ].includes(error.message)
       )
         throw new HttpError(
           400,
           "INVALID_CATALOGUE_REFERENCE",
-          "A category, collection, product, or variant reference is invalid.",
+          "A category or collection is invalid, inactive, or incompatible with the product audience.",
         );
       throw error;
     }

@@ -22,6 +22,7 @@ interface Option {
   id: string;
   name: string;
   active: boolean;
+  audience?: "men" | "women" | "unisex" | "accessories";
 }
 interface VariantRow {
   key: string;
@@ -170,10 +171,12 @@ export function ProductEditor({ productId }: { productId?: string }) {
   const [formVersion, setFormVersion] = useState(0);
   const [title, setTitle] = useState("");
   const [slug, setSlug] = useState("");
+  const [audience, setAudience] = useState<"men" | "women" | "unisex" | "accessories">("unisex");
   function establish(value: AdminProductDto) {
     setProduct(value);
     setTitle(value.title);
     setSlug(value.slug);
+    setAudience(value.audience);
     setRows(value.variants.map((variant) => ({ key: variant.id, value: variant })));
     setFormVersion((version) => version + 1);
   }
@@ -224,7 +227,7 @@ export function ProductEditor({ productId }: { productId?: string }) {
         descriptionHtml: /<\/?[a-z][\s\S]*>/i.test(description)
           ? description
           : descriptionHtml(description),
-        audience: text("audience"),
+        audience,
         brand: text("brand"),
         categoryIds: data.getAll("categoryIds"),
         collectionIds: data.getAll("collectionIds"),
@@ -442,8 +445,11 @@ export function ProductEditor({ productId }: { productId?: string }) {
                 Gender / audience
                 <select
                   className={fieldClass}
-                  defaultValue={product?.audience ?? "unisex"}
+                  value={audience}
                   name="audience"
+                  onChange={(event) =>
+                    setAudience(event.target.value as "men" | "women" | "unisex" | "accessories")
+                  }
                 >
                   {["men", "women", "unisex", "accessories"].map((value) => (
                     <option key={value}>{value}</option>
@@ -479,15 +485,27 @@ export function ProductEditor({ productId }: { productId?: string }) {
                     name={group.name}
                     defaultValue={[...group.selected]}
                   >
-                    {group.options.map((option) => (
-                      <option key={option.id} value={option.id}>
-                        {option.name}
-                        {option.active ? "" : " (inactive)"}
-                      </option>
-                    ))}
+                    {group.options
+                      .filter(
+                        (option) =>
+                          group.selected.includes(option.id) ||
+                          (option.active &&
+                            (group.name !== "categoryIds" ||
+                              option.audience === undefined ||
+                              option.audience === "unisex" ||
+                              audience === "unisex" ||
+                              option.audience === audience)),
+                      )
+                      .map((option) => (
+                        <option key={option.id} value={option.id}>
+                          {option.name}
+                          {option.active ? "" : " (inactive)"}
+                        </option>
+                      ))}
                   </select>
                   <span className="text-xs text-muted">
-                    Select one or more; use Command/Ctrl to change selections.
+                    Select one or more; use Command/Ctrl to change selections. Only active
+                    categories matching the selected audience (or Unisex) are available.
                   </span>
                 </label>
               ))}

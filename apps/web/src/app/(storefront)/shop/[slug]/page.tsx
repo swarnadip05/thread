@@ -1,7 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@thread/ui";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+  ErrorState,
+} from "@thread/ui";
 import { Star } from "lucide-react";
 
 import { ProductCard } from "@/components/discovery/product-card";
@@ -9,9 +15,14 @@ import { ProductGallery } from "@/components/product/product-gallery";
 import { ProductPurchasePanel } from "@/components/product/product-purchase-panel";
 import { ProductReviews } from "@/components/product/product-reviews";
 import { RecentlyViewed } from "@/components/product/recently-viewed";
-import { loadProductDetail, loadProductSlugRedirect } from "@/services/catalogue";
+import {
+  isCatalogueUnavailable,
+  loadProductDetail,
+  loadProductSlugRedirect,
+} from "@/services/catalogue";
 import { loadContentPage, loadPublicSettings } from "@/services/site-settings";
 import { ProductViewAnalytics } from "@/analytics/product-view-analytics";
+import { catalogueUnavailableMessage } from "@/config/api-url";
 import { jsonLd, siteUrl } from "@/seo/site";
 
 type PageProps = { params: Promise<{ slug: string }> };
@@ -19,6 +30,8 @@ type PageProps = { params: Promise<{ slug: string }> };
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
   const data = await loadProductDetail(slug);
+  if (isCatalogueUnavailable(data))
+    return { title: "Product details unavailable | THREAD", robots: { index: false } };
   if (!data) return { title: "Product not found | THREAD" };
   return {
     title: data.product.seo?.title || `${data.product.title} | THREAD`,
@@ -41,6 +54,15 @@ export default async function ProductDetailPage({ params }: PageProps) {
     loadContentPage("returns-exchanges"),
     loadPublicSettings(),
   ]);
+  if (isCatalogueUnavailable(data))
+    return (
+      <section className="shell-container py-16">
+        <ErrorState
+          description={catalogueUnavailableMessage}
+          title="Product details are unavailable"
+        />
+      </section>
+    );
   if (!data) {
     const redirectSlug = await loadProductSlugRedirect(slug);
     if (redirectSlug) permanentRedirect(`/shop/${encodeURIComponent(redirectSlug)}`);

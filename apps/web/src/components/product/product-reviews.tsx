@@ -8,6 +8,7 @@ import { useState, type FormEvent } from "react";
 
 import { apiRequest } from "../../auth/auth-client";
 import { useAuth } from "../../auth/auth-provider";
+import { API_URL } from "@/config/api-url";
 
 export function ProductReviews({
   initialReviews,
@@ -20,20 +21,13 @@ export function ProductReviews({
 }) {
   const [reviews, setReviews] = useState(initialReviews);
   const [ratingFilter, setRatingFilter] = useState<number | undefined>();
-  const configuredApiUrl = process.env.NEXT_PUBLIC_API_URL;
-  const apiUrl =
-    process.env.NODE_ENV === "production" && /localhost|127\.0\.0\.1/.test(configuredApiUrl ?? "")
-      ? null
-      : configuredApiUrl ||
-        (process.env.NODE_ENV === "production" ? null : "http://localhost:4000");
-
   const filter = async (rating?: number, page = 1) => {
     setRatingFilter(rating);
-    if (!apiUrl) return;
+    if (!API_URL) return;
     const query = new URLSearchParams({ limit: "10", page: String(page) });
     if (rating) query.set("rating", String(rating));
     const response = await fetch(
-      `${apiUrl}/api/v1/catalog/products/${encodeURIComponent(productSlug)}/reviews?${query}`,
+      `${API_URL}/api/v1/catalog/products/${encodeURIComponent(productSlug)}/reviews?${query}`,
     );
     if (!response.ok) return;
     const body = (await response.json()) as { success: boolean; data?: ProductReviewPageDto };

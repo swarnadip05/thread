@@ -7,6 +7,52 @@ import { createApp } from "../src/app.js";
 const silentLogger = pino({ enabled: false });
 
 describe("health endpoints", () => {
+  it("reports safe API, MongoDB, Redis, and database health at the API path", async () => {
+    const app = createApp({
+      healthDetails: async () => ({
+        mongodb: true,
+        redis: true,
+        database: "thread-commerce",
+      }),
+      isReady: () => true,
+      logger: silentLogger,
+      webOrigin: "http://localhost:3000",
+    });
+
+    const response = await request(app).get("/api/v1/health").expect(200);
+
+    expect(response.body.data).toMatchObject({
+      api: "ok",
+      mongodb: "connected",
+      redis: "connected",
+      database: "thread-commerce",
+    });
+    expect(JSON.stringify(response.body)).not.toContain("mongodb://");
+    expect(JSON.stringify(response.body)).not.toContain("redis://");
+  });
+
+  it("keeps the API health response safe when Redis is unavailable", async () => {
+    const app = createApp({
+      healthDetails: async () => ({
+        mongodb: true,
+        redis: false,
+        database: "thread-commerce",
+      }),
+      isReady: () => true,
+      logger: silentLogger,
+      webOrigin: "http://localhost:3000",
+    });
+
+    const response = await request(app).get("/api/v1/health").expect(503);
+
+    expect(response.body.data).toMatchObject({
+      api: "ok",
+      mongodb: "connected",
+      redis: "unavailable",
+      database: "thread-commerce",
+    });
+  });
+
   it("reports the process as live and returns a request ID", async () => {
     const app = createApp({
       isReady: () => true,

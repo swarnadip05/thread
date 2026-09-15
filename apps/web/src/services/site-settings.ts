@@ -13,13 +13,9 @@ import {
 } from "@/config/site-settings";
 import { fallbackContentPages } from "@/content/business-pages";
 import { fallbackHomepage } from "@/content/homepage-fallback";
+import { API_URL, USE_STATIC_CATALOGUE } from "@/config/api-url";
 import { productionProductSummaries } from "./production-catalogue";
 
-const configuredApiUrl = process.env.NEXT_PUBLIC_API_URL;
-const apiUrl =
-  process.env.NODE_ENV === "production" && /localhost|127\.0\.0\.1/.test(configuredApiUrl ?? "")
-    ? null
-    : configuredApiUrl || (process.env.NODE_ENV === "production" ? null : "http://localhost:4000");
 const publicFallbackHomepage: PublicHomepageDto = {
   ...fallbackHomepage,
   sections: fallbackHomepage.sections
@@ -28,9 +24,9 @@ const publicFallbackHomepage: PublicHomepageDto = {
 };
 
 async function publicApi<T>(path: string): Promise<T | null> {
-  if (!apiUrl) return null;
+  if (!API_URL) return null;
   try {
-    const response = await fetch(`${apiUrl}/api/v1/public${path}`, {
+    const response = await fetch(`${API_URL}/api/v1/public${path}`, {
       next: { revalidate: 60 },
       signal: AbortSignal.timeout(2000),
     });
@@ -46,7 +42,7 @@ export async function loadHomepage(previewToken?: string): Promise<PublicHomepag
   if (previewToken) {
     try {
       const response = await fetch(
-        `${apiUrl}/api/v1/public/homepage/preview/${encodeURIComponent(previewToken)}`,
+        `${API_URL}/api/v1/public/homepage/preview/${encodeURIComponent(previewToken)}`,
         { cache: "no-store", signal: AbortSignal.timeout(2_000) },
       );
       if (!response.ok) return publicFallbackHomepage;
@@ -72,26 +68,16 @@ export async function loadHomepageProducts(
   if (sort === "newest") parameters.set("newArrival", "true");
   if (collectionSlugs.length) parameters.set("collection", collectionSlugs.join(","));
   try {
-    if (!apiUrl) return productionProductSummaries(4);
-    const response = await fetch(`${apiUrl}/api/v1/catalog/products?${parameters}`, {
+    if (!API_URL) return USE_STATIC_CATALOGUE ? productionProductSummaries(4) : [];
+    const response = await fetch(`${API_URL}/api/v1/catalog/products?${parameters}`, {
       cache: "no-store",
       signal: AbortSignal.timeout(2_000),
     });
-    if (!response.ok) return productionProductSummaries(4);
+    if (!response.ok) return USE_STATIC_CATALOGUE ? productionProductSummaries(4) : [];
     const body = (await response.json()) as ApiResponse<ProductPage>;
-    if (body.success && !body.data.items.length && sort === "newest") {
-      parameters.delete("newArrival");
-      const fallback = await fetch(`${apiUrl}/api/v1/catalog/products?${parameters}`, {
-        cache: "no-store",
-        signal: AbortSignal.timeout(2_000),
-      });
-      if (!fallback.ok) return [];
-      const page = (await fallback.json()) as ApiResponse<ProductPage>;
-      return page.success ? page.data.items : [];
-    }
     return body.success ? body.data.items : [];
   } catch {
-    return productionProductSummaries(4);
+    return USE_STATIC_CATALOGUE ? productionProductSummaries(4) : [];
   }
 }
 

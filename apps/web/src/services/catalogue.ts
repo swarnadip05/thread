@@ -7,13 +7,8 @@ import type {
   ProductReviewPageDto,
   ProductSummaryDto,
 } from "@thread/types";
+import { API_URL, USE_STATIC_CATALOGUE } from "@/config/api-url";
 import { loadProductionDiscovery, loadProductionProduct } from "./production-catalogue";
-
-const configuredApiUrl = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "");
-const apiUrl =
-  process.env.NODE_ENV === "production" && /localhost|127\.0\.0\.1/.test(configuredApiUrl ?? "")
-    ? null
-    : configuredApiUrl || (process.env.NODE_ENV === "production" ? null : "http://localhost:4000");
 
 export interface DiscoveryData {
   readonly page: ProductPageDto;
@@ -27,30 +22,48 @@ export interface ProductDetailData {
   readonly purchaseConfig: ProductPurchaseConfigDto;
 }
 
+export interface CatalogueUnavailable {
+  readonly unavailable: true;
+}
+
+export type ProductDetailResult = ProductDetailData | CatalogueUnavailable | null;
+
+export function isCatalogueUnavailable(value: ProductDetailResult): value is CatalogueUnavailable {
+  return value !== null && "unavailable" in value;
+}
+
+interface CatalogueResponse<T> {
+  readonly data: T | null;
+  readonly unavailable: boolean;
+}
+
 export async function loadProductSlugRedirect(slug: string): Promise<string | null> {
   const safeSlug = encodeURIComponent(slug);
   const response = await catalogueGet<{ slug: string | null }>(
     `/catalog/products/${safeSlug}/redirect`,
   );
-  return response?.slug ?? null;
+  return response.data?.slug ?? null;
 }
 
-async function catalogueGet<T>(path: string): Promise<T | null> {
-  if (!apiUrl) return null;
+async function catalogueGet<T>(path: string): Promise<CatalogueResponse<T>> {
+  if (!API_URL) return { data: null, unavailable: true };
   try {
-    const response = await fetch(`${apiUrl}/api/v1${path}`, {
+    const response = await fetch(`${API_URL}/api/v1${path}`, {
       cache: "no-store",
       signal: AbortSignal.timeout(4_000),
     });
-    if (!response.ok) return null;
+    if (response.status === 404) return { data: null, unavailable: false };
+    if (!response.ok) return { data: null, unavailable: true };
     const body = (await response.json()) as ApiResponse<T>;
-    return body.success ? body.data : null;
+    return body.success
+      ? { data: body.data, unavailable: false }
+      : { data: null, unavailable: true };
   } catch {
-    return null;
+    return { data: null, unavailable: true };
   }
 }
 
-export async function loadProductDetail(slug: string): Promise<ProductDetailData | null> {
+export async function loadProductDetail(slug: string): Promise<ProductDetailResult> {
   const safeSlug = encodeURIComponent(slug);
   const [product, related, reviews, purchaseConfig] = await Promise.all([
     catalogueGet<ProductDetailDto>(`/catalog/products/${safeSlug}`),
@@ -58,11 +71,14 @@ export async function loadProductDetail(slug: string): Promise<ProductDetailData
     catalogueGet<ProductReviewPageDto>(`/catalog/products/${safeSlug}/reviews?limit=10`),
     catalogueGet<ProductPurchaseConfigDto>("/catalog/config"),
   ]);
-  if (!product) return loadProductionProduct(slug);
+  if (!product.data) {
+    if (USE_STATIC_CATALOGUE) return loadProductionProduct(slug);
+    return product.unavailable ? { unavailable: true } : null;
+  }
   return {
-    product,
-    related: related ?? [],
-    reviews: reviews ?? {
+    product: product.data,
+    related: related.data ?? [],
+    reviews: reviews.data ?? {
       items: [],
       page: 1,
       limit: 10,
@@ -70,35 +86,38 @@ export async function loadProductDetail(slug: string): Promise<ProductDetailData
       pages: 1,
       ratingCounts: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
     },
-    purchaseConfig: purchaseConfig ?? { maxQuantity: 10 },
+    purchaseConfig: purchaseConfig.data ?? { maxQuantity: 10 },
   };
 }
 
 export async function loadDiscoveryData(
   parameters: URLSearchParams,
 ): Promise<DiscoveryData | null> {
-  if (!apiUrl) return loadProductionDiscovery(parameters);
+  if (!API_URL) return USE_STATIC_CATALOGUE ? loadProductionDiscovery(parameters) : null;
   const query = parameters.toString();
   try {
     const [productsResponse, facetsResponse] = await Promise.all([
-      fetch(`${apiUrl}/api/v1/catalog/products?${query}`, {
+      fetch(`${API_URL}/api/v1/catalog/products?${query}`, {
         cache: "no-store",
         signal: AbortSignal.timeout(4_000),
       }),
-      fetch(`${apiUrl}/api/v1/catalog/products/facets?${query}`, {
+      fetch(`${API_URL}/api/v1/catalog/products/facets?${query}`, {
         cache: "no-store",
         signal: AbortSignal.timeout(4_000),
       }),
     ]);
-    if (!productsResponse.ok || !facetsResponse.ok) return loadProductionDiscovery(parameters);
+    if (!productsResponse.ok || !facetsResponse.ok)
+      return USE_STATIC_CATALOGUE ? loadProductionDiscovery(parameters) : null;
     const [products, facets] = (await Promise.all([
       productsResponse.json(),
       facetsResponse.json(),
     ])) as [ApiResponse<ProductPageDto>, ApiResponse<ProductFacetsDto>];
     return products.success && facets.success
       ? { page: products.data, facets: facets.data }
-      : loadProductionDiscovery(parameters);
+      : USE_STATIC_CATALOGUE
+        ? loadProductionDiscovery(parameters)
+        : null;
   } catch {
-    return loadProductionDiscovery(parameters);
+    return USE_STATIC_CATALOGUE ? loadProductionDiscovery(parameters) : null;
   }
 }

@@ -2,12 +2,8 @@
 
 import { useState, type FormEvent } from "react";
 import { Button, Input } from "@thread/ui";
+import { API_URL } from "@/config/api-url";
 
-const configuredApiUrl = process.env.NEXT_PUBLIC_API_URL;
-const apiUrl =
-  process.env.NODE_ENV === "production" && /localhost|127\.0\.0\.1/.test(configuredApiUrl ?? "")
-    ? null
-    : configuredApiUrl || (process.env.NODE_ENV === "production" ? null : "http://localhost:4000");
 const newsletterEmailKey = "thread:newsletter-email";
 type NewsletterStatus = "duplicate" | "error" | "idle" | "submitting" | "success" | "validation";
 
@@ -31,12 +27,12 @@ export default function NewsletterForm() {
       return;
     }
     setStatus("submitting");
-    if (!apiUrl) {
+    if (!API_URL) {
       setStatus("error");
       return;
     }
     try {
-      const response = await fetch(`${apiUrl}/api/v1/public/newsletter`, {
+      const response = await fetch(`${API_URL}/api/v1/public/newsletter`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ email, consent }),
