@@ -2,6 +2,7 @@ services:
   - type: web
     name: thread-api
     runtime: docker
+    rootDir: .
     dockerfilePath: ./apps/api/Dockerfile
     dockerContext: .
     autoDeployTrigger: off
@@ -70,6 +71,7 @@ services:
   - type: worker
     name: thread-worker
     runtime: docker
+    rootDir: .
     dockerfilePath: ./apps/api/Dockerfile.worker
     dockerContext: .
     autoDeployTrigger: off
