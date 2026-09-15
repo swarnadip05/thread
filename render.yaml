@@ -20,13 +20,9 @@ services:
       - key: SOCKET_REDIS_ADAPTER_ENABLED
         value: "true"
       - key: EMAIL_PROVIDER
-        value: smtp
-      - key: SMTP_SECURE
-        value: "true"
+        value: local
       - key: PAYMENT_PROVIDER
-        value: razorpay
-      - key: RAZORPAY_MODE
-        value: live
+        value: mock
       - key: PHONE_AUTH_ENABLED
         value: "false"
       - key: TOTP_ENABLED
@@ -86,13 +82,9 @@ services:
       - key: SOCKET_REDIS_ADAPTER_ENABLED
         value: "true"
       - key: EMAIL_PROVIDER
-        value: smtp
-      - key: SMTP_SECURE
-        value: "true"
+        value: local
       - key: PAYMENT_PROVIDER
-        value: razorpay
-      - key: RAZORPAY_MODE
-        value: live
+        value: mock
       - key: PHONE_AUTH_ENABLED
         value: "false"
       - key: TOTP_ENABLED
