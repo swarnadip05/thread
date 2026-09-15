@@ -58,7 +58,8 @@ function parsePayments(
 ): Pick<ApiConfig, "paymentProvider" | "razorpay"> {
   const provider = environment.PAYMENT_PROVIDER?.trim() || "mock";
   if (provider === "mock" || provider !== "razorpay") return { paymentProvider: "mock" };
-  const mode = environment.RAZORPAY_MODE?.trim() || "test";
+  const rawMode = environment.RAZORPAY_MODE?.trim() || "test";
+  const mode: "live" | "test" = rawMode === "live" ? "live" : "test";
   const prefix = mode === "live" ? "RAZORPAY_LIVE" : "RAZORPAY_TEST";
   const keyId = environment[`${prefix}_KEY_ID`]?.trim();
   const keySecret = environment[`${prefix}_KEY_SECRET`]?.trim();
