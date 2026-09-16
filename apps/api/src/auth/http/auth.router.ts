@@ -39,6 +39,7 @@ export interface AuthRouterConfig {
   readonly otpRateLimit?: number;
   readonly passwordResetRateLimit?: number;
   readonly webOrigin: string;
+  readonly corsOrigins?: readonly string[];
 }
 
 function context(request: Request): AuthContext {
@@ -81,7 +82,7 @@ export function createAuthRouter(
   };
   const readRefresh = (request: Request) => parseCookies(request.header("cookie"))[REFRESH_COOKIE];
 
-  router.use(createOriginGuard(config.webOrigin));
+  router.use(createOriginGuard(config.webOrigin, config.corsOrigins));
 
   router.post(
     "/register",

@@ -28,6 +28,40 @@ export class ApiClientError extends Error {
   }
 }
 
+async function parseApiResponse<T>(response: Response): Promise<ApiResponse<T>> {
+  const contentType = response.headers.get("content-type") ?? "";
+  if (!contentType.includes("application/json")) {
+    if (response.status === 404) {
+      throw new ApiClientError(
+        "SERVICE_UNAVAILABLE",
+        "The API service is unreachable (404 Not Found). Please verify your backend server deployment and BACKEND_API_URL settings.",
+        404,
+      );
+    }
+    if (response.status >= 500) {
+      throw new ApiClientError(
+        "SERVER_ERROR",
+        "The server is temporarily unavailable. Please try again shortly.",
+        response.status,
+      );
+    }
+    throw new ApiClientError(
+      "INVALID_RESPONSE",
+      `Unexpected response from server (${response.status}).`,
+      response.status,
+    );
+  }
+  try {
+    return (await response.json()) as ApiResponse<T>;
+  } catch {
+    throw new ApiClientError(
+      "INVALID_JSON",
+      "Unable to parse server response as JSON.",
+      response.status,
+    );
+  }
+}
+
 export async function authRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(`${API_URL}/api/v1/auth${path}`, {
     ...options,
@@ -39,7 +73,7 @@ export async function authRequest<T>(path: string, options: RequestInit = {}): P
     },
   });
   if (response.status === 204) return undefined as T;
-  const body = (await response.json()) as ApiResponse<T>;
+  const body = await parseApiResponse<T>(response);
   if (!response.ok || !body.success) {
     const error = body.success
       ? { code: "REQUEST_FAILED", message: "Request failed." }
@@ -65,7 +99,7 @@ export async function apiRequest<T>(
     },
   });
   if (response.status === 204) return undefined as T;
-  const body = (await response.json()) as ApiResponse<T>;
+  const body = await parseApiResponse<T>(response);
   if (!response.ok || !body.success) {
     const error = body.success
       ? { code: "REQUEST_FAILED", message: "Request failed." }

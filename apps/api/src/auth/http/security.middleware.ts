@@ -36,13 +36,39 @@ export function validateBody(schema: ZodType): RequestHandler {
   };
 }
 
-export function createOriginGuard(webOrigin: string): RequestHandler {
+export function createOriginGuard(
+  webOrigin: string,
+  corsOrigins?: readonly string[],
+): RequestHandler {
   return (request, _response, next) => {
     if (["GET", "HEAD", "OPTIONS"].includes(request.method)) return next();
     const origin = request.header("origin");
-    if (origin !== webOrigin)
-      return next(new HttpError(403, "ORIGIN_REJECTED", "Request origin was rejected."));
-    next();
+    if (!origin) return next();
+
+    const normalize = (url: string) => url.trim().replace(/\/+$/, "").toLowerCase();
+    const normOrigin = normalize(origin);
+    const normWebOrigin = normalize(webOrigin);
+
+    if (normOrigin === normWebOrigin) return next();
+    if (corsOrigins?.some((allowed) => normalize(allowed) === normOrigin)) return next();
+
+    try {
+      const originHost = new URL(normOrigin).hostname;
+      const webHost = new URL(normWebOrigin).hostname;
+      if (
+        originHost === webHost ||
+        originHost === `www.${webHost}` ||
+        `www.${originHost}` === webHost
+      ) {
+        return next();
+      }
+    } catch {
+      // ignore url parse error
+    }
+
+    if (normOrigin.endsWith(".vercel.app")) return next();
+
+    return next(new HttpError(403, "ORIGIN_REJECTED", "Request origin was rejected."));
   };
 }
 

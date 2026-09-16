@@ -68,6 +68,7 @@ export function composeAuth(
       ...(googleOAuth ? { googleOAuth } : {}),
       isProduction: config.nodeEnv === "production",
       webOrigin: config.webOrigin,
+      ...(config.corsOrigins ? { corsOrigins: config.corsOrigins } : {}),
     }),
   };
 }

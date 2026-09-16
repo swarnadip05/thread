@@ -75,7 +75,32 @@ export function createApp(dependencies: AppDependencies): Express {
     cors({
       credentials: true,
       origin: (origin, callback) => {
-        callback(null, true);
+        const allowed = new Set(dependencies.corsOrigins ?? [dependencies.webOrigin]);
+        const normalized = origin?.replace(/\/+$/, "");
+        if (!normalized) return callback(null, true);
+        if (allowed.has(normalized)) return callback(null, true);
+
+        try {
+          const originHost = new URL(normalized).hostname;
+          for (const a of allowed) {
+            const allowedHost = new URL(a).hostname;
+            if (
+              originHost === allowedHost ||
+              originHost === `www.${allowedHost}` ||
+              `www.${originHost}` === allowedHost
+            ) {
+              return callback(null, true);
+            }
+          }
+        } catch {
+          // ignore url parse error
+        }
+
+        if (normalized.endsWith(".vercel.app")) {
+          return callback(null, true);
+        }
+
+        callback(new HttpError(403, "CORS_ORIGIN_REJECTED", "Request origin was rejected."));
       },
       methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
       allowedHeaders: [
