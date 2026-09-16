@@ -55,7 +55,7 @@ export function createApp(dependencies: AppDependencies): Express {
           connectSrc: ["'self'"],
         },
       },
-      crossOriginResourcePolicy: { policy: "same-site" },
+      crossOriginResourcePolicy: { policy: "cross-origin" },
       referrerPolicy: { policy: "no-referrer" },
     }),
   );
@@ -76,7 +76,15 @@ export function createApp(dependencies: AppDependencies): Express {
       credentials: true,
       origin: (origin, callback) => {
         const allowed = new Set(dependencies.corsOrigins ?? [dependencies.webOrigin]);
-        if (!origin || allowed.has(origin)) return callback(null, true);
+        const normalized = origin?.replace(/\/+$/, "");
+        if (
+          !normalized ||
+          allowed.has(normalized) ||
+          normalized.endsWith(".vercel.app") ||
+          normalized === dependencies.webOrigin?.replace(/\/+$/, "")
+        ) {
+          return callback(null, true);
+        }
         callback(new HttpError(403, "CORS_ORIGIN_REJECTED", "Request origin was rejected."));
       },
       methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
