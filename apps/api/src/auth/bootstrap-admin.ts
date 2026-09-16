@@ -28,7 +28,7 @@ export async function bootstrapAdmin(
   // A unique, shared migration document serializes concurrent bootstrap attempts.
   await Promise.all([UserModel.init(), SeedMigrationModel.init()]);
   const passwordHash = await hashPassword(input.password);
-  return mongoose.connection.transaction(async (session) => {
+    return mongoose.connection.transaction(async (session): Promise<"created" | "already-exists"> => {
     await SeedMigrationModel.findOneAndUpdate(
       { version: "admin-bootstrap-lock-v1" },
       { $set: { description: "Serialize initial administrator bootstrap", appliedAt: new Date() } },
