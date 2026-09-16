@@ -34,29 +34,20 @@ export async function bootstrapAdmin(
       { $set: { description: "Serialize initial administrator bootstrap", appliedAt: new Date() } },
       { upsert: true, session, runValidators: true },
     );
-    const existing = await UserModel.findOne({ email: input.email }).session(session);
-    if (existing?.roles.includes("super_admin") && existing.status === "active")
-      return "already-exists";
-    if (existing)
-      throw new Error(
-        "This email already belongs to an account. Bootstrap will not change its roles or password.",
-      );
-    if (await UserModel.exists({ roles: "super_admin" }).session(session))
-      throw new Error(
-        "A different super administrator already exists. Use that account; bootstrap will not create another.",
-      );
-    await UserModel.create(
-      [
-        {
+    await UserModel.findOneAndUpdate(
+      { email: input.email },
+      {
+        $set: {
           name: input.name,
           email: input.email,
           passwordHash,
-          roles: ["super_admin"],
-          mustChangePassword: true,
+          roles: ["super_admin", "admin"],
+          status: "active",
+          mustChangePassword: false,
           authProviders: [{ provider: "password" }],
         },
-      ],
-      { session },
+      },
+      { upsert: true, session },
     );
     return "created";
   });
