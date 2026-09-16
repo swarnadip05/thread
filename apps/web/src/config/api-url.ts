@@ -7,17 +7,31 @@
  */
 function normalizeApiOrigin(value: string | undefined): string {
   const normalized = value?.trim().replace(/\/+$/, "") ?? "";
-  if (!normalized) return process.env.NODE_ENV === "production" ? "" : "http://localhost:4000";
+  if (!normalized) {
+    if (typeof window !== "undefined") return "";
+    return (
+      process.env.BACKEND_API_URL ||
+      (process.env.NODE_ENV === "production"
+        ? "https://thread-sfe5.onrender.com"
+        : "http://localhost:4000")
+    );
+  }
   if (
     process.env.NODE_ENV === "production" &&
     /(^|\/\/)(localhost|127\.0\.0\.1)(?::|\/|$)/i.test(normalized)
-  )
-    return "";
+  ) {
+    return typeof window !== "undefined"
+      ? ""
+      : (process.env.BACKEND_API_URL || "https://thread-sfe5.onrender.com");
+  }
   // Older local environment files occasionally included the REST prefix.
   return normalized.replace(/\/api\/v1$/, "");
 }
 
-export const API_URL = normalizeApiOrigin(process.env.NEXT_PUBLIC_API_URL);
+export const API_URL = normalizeApiOrigin(
+  process.env.NEXT_PUBLIC_API_URL ||
+    (typeof window === "undefined" ? process.env.BACKEND_API_URL : undefined),
+);
 
 /**
  * Emergency snapshots are deliberately opt-in. They must never mask a local

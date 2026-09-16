@@ -6,8 +6,8 @@ export const API_URL = configuredApiUrl;
 const environmentSocketUrl = process.env.NEXT_PUBLIC_SOCKET_URL;
 export const SOCKET_URL =
   process.env.NODE_ENV === "production" && /localhost|127\.0\.0\.1/.test(environmentSocketUrl ?? "")
-    ? API_URL
-    : environmentSocketUrl || API_URL;
+    ? (API_URL || "https://thread-sfe5.onrender.com")
+    : environmentSocketUrl || API_URL || (process.env.NODE_ENV === "production" ? "https://thread-sfe5.onrender.com" : "http://localhost:4000");
 
 function csrfToken(): string {
   if (typeof document === "undefined") return "";

@@ -44,7 +44,7 @@ const nextConfig: NextConfig = {
     const backendUrl =
       process.env.BACKEND_API_URL ||
       process.env.NEXT_PUBLIC_API_URL ||
-      "http://localhost:4000";
+      "https://thread-sfe5.onrender.com";
 
     return [
       {
