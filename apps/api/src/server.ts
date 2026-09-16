@@ -146,6 +146,16 @@ process.once("SIGTERM", shutdown);
 async function start(): Promise<void> {
   try {
     await connectDatabase(config.mongodbUri, logger);
+    if (process.env.ADMIN_BOOTSTRAP_CONFIRM === "CREATE_THREAD_SUPER_ADMIN") {
+      try {
+        const { bootstrapAdmin, parseBootstrapEnvironment } = await import("./auth/bootstrap-admin.js");
+        const input = parseBootstrapEnvironment(process.env);
+        const result = await bootstrapAdmin(input);
+        logger.info({ result }, "Auto-bootstrap admin check completed");
+      } catch (err: any) {
+        logger.warn({ err: err?.message || err }, "Auto-bootstrap admin skipped");
+      }
+    }
     await checkoutComposition.startJobProducer();
     reliability.start();
     await notificationComposition.realtime.attach(server);
