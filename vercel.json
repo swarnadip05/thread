@@ -5,8 +5,8 @@
   "installCommand": "pnpm install",
   "rewrites": [
     {
-      "source": "/api/v1/:path*",
-      "destination": "https://thread-sfe5.onrender.com/api/v1/:path*"
+      "source": "/api/:path*",
+      "destination": "https://thread-sfe5.onrender.com/api/:path*"
     }
   ]
 }
