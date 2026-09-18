@@ -352,13 +352,18 @@ export function createCatalogueRouter(
         );
       }
 
-      const result = await importService.executeImport(
-        buffer,
-        filename,
-        request.auth!.userId,
-        context(request),
-      );
-      response.json({ success: true, data: result });
+      try {
+        const result = await importService.executeImport(
+          buffer,
+          filename,
+          request.auth!.userId,
+          context(request),
+        );
+        response.json({ success: true, data: result });
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        throw new HttpError(400, "IMPORT_FAILED", `Import execution failed: ${msg}`);
+      }
     },
   );
   router.post("/admin/products/import-zip", catalogueRoles, async (request, response) => {

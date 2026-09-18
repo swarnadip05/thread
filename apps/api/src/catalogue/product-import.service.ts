@@ -945,7 +945,6 @@ export class ProductImportService {
         $setOnInsert: {
           name: "Signature Collection",
           slug: "signature-collection",
-          description: "Curated streetwear from THREAD.",
           active: true,
         },
       },
@@ -959,7 +958,7 @@ export class ProductImportService {
           name: "Standard Delivery",
           description: "Standard delivery across India.",
           ratePaise: 0,
-          freeShippingThresholdPaise: 0,
+          freeShippingThresholdPaise: null,
           estimatedBusinessDaysMin: 3,
           estimatedBusinessDaysMax: 6,
           countries: ["India"],
