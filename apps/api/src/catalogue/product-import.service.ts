@@ -1040,17 +1040,19 @@ export class ProductImportService {
     await ShippingMethodModel.findOneAndUpdate(
       { name: "Standard Delivery" },
       {
+        $set: {
+          ratePaise: 3000, // ₹30 standard delivery charge
+          description: "Standard delivery across India.",
+          codEligible: true,
+          active: true,
+        },
         $setOnInsert: {
           name: "Standard Delivery",
-          description: "Standard delivery across India.",
-          ratePaise: 0,
           freeShippingThresholdPaise: null,
           estimatedBusinessDaysMin: 3,
           estimatedBusinessDaysMax: 6,
           countries: ["India"],
           postalPrefixes: [],
-          codEligible: true,
-          active: true,
           sortOrder: 1,
         },
       },

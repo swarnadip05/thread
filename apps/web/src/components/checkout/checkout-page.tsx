@@ -29,6 +29,8 @@ import { CheckoutSummary } from "./checkout-summary";
 import { PaymentAction } from "./payment-action";
 import { ReservationTimer } from "./reservation-timer";
 
+const DELIVERY_PAISE = 3000; // ₹30 standard delivery
+
 export function CheckoutPage({ gstin }: { gstin: string }) {
   const auth = useAuth();
   const [cart, setCart] = useState<StoredCartLine[]>([]);
@@ -55,7 +57,8 @@ export function CheckoutPage({ gstin }: { gstin: string }) {
         Promise.resolve(readCheckoutSessionId()),
       ]);
       setBootstrap(data);
-      setCart(readCart());
+      const currentCart = readCart();
+      setCart(currentCart);
       const initialAddress =
         data.addresses.find((address) => address.isDefault)?.id ?? data.addresses[0]?.id ?? "";
       setAddressId(initialAddress);
@@ -67,11 +70,26 @@ export function CheckoutPage({ gstin }: { gstin: string }) {
       }
 
       if (storedSessionId && auth.accessToken) {
-        const existing = await apiRequest<CheckoutSessionDto>(
-          `/checkout/sessions/${storedSessionId}`,
-          auth.accessToken,
-        );
-        setSession(existing);
+        try {
+          const existing = await apiRequest<CheckoutSessionDto>(
+            `/checkout/sessions/${storedSessionId}`,
+            auth.accessToken,
+          );
+          // Only restore session if cart items still match the session (prevent showing stale multi-item sessions)
+          const sessionVariantIds = new Set(existing.items.map((i) => i.variantId));
+          const cartVariantIds = new Set(currentCart.map((c) => c.variantId));
+          const setsMatch =
+            sessionVariantIds.size === cartVariantIds.size &&
+            [...cartVariantIds].every((id) => sessionVariantIds.has(id));
+          if (setsMatch && existing.status === "active") {
+            setSession(existing);
+          } else {
+            // Cart changed or session expired — discard old session
+            clearCheckoutAttempt();
+          }
+        } catch {
+          clearCheckoutAttempt();
+        }
       }
       setError("");
     } catch (loadError) {
@@ -90,18 +108,26 @@ export function CheckoutPage({ gstin }: { gstin: string }) {
     );
     setAddressId(address.id);
     setShowAddressForm(false);
+    // Clear address error if any
+    setError((prev) =>
+      prev.toLowerCase().includes("address") ? "" : prev,
+    );
   };
 
   const createCheckout = async () => {
     if (!bootstrap) return;
+
+    // Address check: must have a selected address ID
     if (!addressId) {
       setShowAddressForm(true);
-      setError("Please fill in or select your delivery address to proceed.");
+      setError("Please fill in your delivery address before placing the order.");
+      window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
     if (!auth.accessToken) {
       setShowAddressForm(true);
-      setError("Please save your delivery address to proceed.");
+      setError("Please save your delivery address first by clicking 'Deliver to this address'.");
+      window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
     if (!shippingMethodId || !policyAccepted) {
@@ -245,6 +271,16 @@ export function CheckoutPage({ gstin }: { gstin: string }) {
       </div>
     );
 
+  // Compute estimated totals for mobile bar and summary
+  const cartSubtotal = cart.reduce(
+    (sum, line) => sum + (line.observedUnitPricePaise ?? 0) * line.quantity,
+    0,
+  );
+  const estimatedShipping = DELIVERY_PAISE;
+  const taxRate = paymentMethod === "cod" ? 5 : 3;
+  const estimatedTax = Math.round((cartSubtotal * taxRate) / 100);
+  const estimatedTotal = cartSubtotal > 0 ? cartSubtotal + estimatedShipping + estimatedTax : 0;
+
   const inactiveSession = session && session.status !== "active";
   return (
     <div className="shell-container pb-40 pt-8 lg:pb-16">
@@ -267,12 +303,11 @@ export function CheckoutPage({ gstin }: { gstin: string }) {
                   </p>
                   {session.paymentMethod === "payment_placeholder" ? (
                     <p className="mt-2 text-sm">
-                      Review the server-confirmed total before opening the secure payment window.
+                      Review the confirmed total below, then complete your online payment.
                     </p>
                   ) : (
                     <p className="mt-2 text-sm">
-                      Review the server-confirmed total and any price changes, then place the COD
-                      order.
+                      Review the confirmed total and place your COD order.
                     </p>
                   )}
                 </div>
@@ -317,6 +352,7 @@ export function CheckoutPage({ gstin }: { gstin: string }) {
             </section>
           ) : null}
 
+          {/* Delivery Address */}
           <section className="rounded-lg border border-ink/10 p-5">
             <div className="flex items-center justify-between gap-4">
               <div>
@@ -385,6 +421,7 @@ export function CheckoutPage({ gstin }: { gstin: string }) {
             ) : null}
           </section>
 
+          {/* Delivery Method */}
           <section className="rounded-lg border border-ink/10 p-5">
             <h2 className="flex items-center gap-2 text-xl font-semibold">
               <Truck aria-hidden="true" className="size-5" /> Delivery method
@@ -409,7 +446,7 @@ export function CheckoutPage({ gstin }: { gstin: string }) {
                         <span className="mt-1 block text-xs text-muted">{method.description}</span>
                       </span>
                     </span>
-                    <Price amount={method.ratePaise} className="text-sm" />
+                    <Price amount={method.ratePaise} className="text-sm font-semibold" />
                   </label>
                 ))}
               </div>
@@ -420,9 +457,10 @@ export function CheckoutPage({ gstin }: { gstin: string }) {
             )}
           </section>
 
+          {/* Payment Method */}
           <section className="rounded-lg border border-ink/10 p-5">
             <h2 className="flex items-center gap-2 text-xl font-semibold">
-              <PackageCheck aria-hidden="true" className="size-5" /> Coupon and payment method
+              <PackageCheck aria-hidden="true" className="size-5" /> Coupon and payment
             </h2>
             <label className="mt-5 grid gap-1 text-sm font-medium">
               Coupon code <span className="font-normal text-muted">(optional)</span>
@@ -436,7 +474,7 @@ export function CheckoutPage({ gstin }: { gstin: string }) {
             <fieldset className="mt-6 grid gap-3">
               <legend className="text-sm font-semibold">Choose payment method</legend>
 
-              {/* Online Payment Option */}
+              {/* Online Payment */}
               <label
                 className={`flex cursor-pointer gap-3.5 rounded-lg border p-4 transition-colors ${
                   paymentMethod === "payment_placeholder"
@@ -452,46 +490,20 @@ export function CheckoutPage({ gstin }: { gstin: string }) {
                   onChange={() => setPaymentMethod("payment_placeholder")}
                   type="radio"
                 />
-                <div className="flex-1">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="flex items-center gap-2 text-sm font-semibold">
-                      <CreditCard aria-hidden="true" className="size-4 text-ink" />
-                      Online Advance Payment (Snap Cart Gateway)
-                    </span>
-                    <div className="flex items-center gap-1.5">
-                      <span className="rounded bg-gold/15 px-2 py-0.5 text-[0.68rem] font-bold uppercase tracking-wider text-charcoal">
-                        3% Service Tax
-                      </span>
-                      <span className="rounded bg-success/15 px-2 py-0.5 text-[0.68rem] font-bold uppercase tracking-wider text-success">
-                        Save 2%
-                      </span>
-                    </div>
-                  </div>
-                  <p className="mt-1 text-xs text-muted">
-                    Merchant: <strong>Snap Cart</strong> (MID: TcQzLflfwHCkgu) • 3% service tax. Instant UPI (GPay, PhonePe, Paytm), Cards, NetBanking & Apple Pay.
-                  </p>
-                  <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-[0.7rem] font-medium text-charcoal/80">
-                    <span className="rounded border border-ink/10 bg-paper px-2 py-0.5 font-bold text-success">
-                      UPI
-                    </span>
-                    <span className="rounded border border-ink/10 bg-paper px-2 py-0.5">
-                      Google Pay
-                    </span>
-                    <span className="rounded border border-ink/10 bg-paper px-2 py-0.5">
-                      PhonePe
-                    </span>
-                    <span className="rounded border border-ink/10 bg-paper px-2 py-0.5">Paytm</span>
-                    <span className="rounded border border-ink/10 bg-paper px-2 py-0.5">
-                      RuPay / Visa / Mastercard
-                    </span>
-                    <span className="rounded border border-ink/10 bg-paper px-2 py-0.5">
-                      Net Banking
+                <div className="flex flex-1 items-center justify-between gap-2">
+                  <span className="flex items-center gap-2 text-sm font-semibold">
+                    <CreditCard aria-hidden="true" className="size-4 text-ink" />
+                    Online Payment
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="rounded bg-success/15 px-2 py-0.5 text-[0.68rem] font-bold uppercase tracking-wider text-success">
+                      + 3% tax
                     </span>
                   </div>
                 </div>
               </label>
 
-              {/* Cash on Delivery Option */}
+              {/* COD */}
               {bootstrap!.codEnabled ? (
                 <>
                   <label
@@ -509,19 +521,14 @@ export function CheckoutPage({ gstin }: { gstin: string }) {
                       onChange={() => setPaymentMethod("cod")}
                       type="radio"
                     />
-                    <div className="flex-1">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="flex items-center gap-2 text-sm font-semibold">
-                          <Banknote aria-hidden="true" className="size-4 text-ink" />
-                          Cash on Delivery (COD)
-                        </span>
-                        <span className="rounded bg-ink/10 px-2 py-0.5 text-[0.68rem] font-bold text-charcoal">
-                          5% Service Tax & Handling
-                        </span>
-                      </div>
-                      <p className="mt-1 text-xs text-muted">
-                        5% service tax & handling fee charged for doorstep delivery collection. Pay via cash or delivery agent's UPI QR code.
-                      </p>
+                    <div className="flex flex-1 items-center justify-between gap-2">
+                      <span className="flex items-center gap-2 text-sm font-semibold">
+                        <Banknote aria-hidden="true" className="size-4 text-ink" />
+                        Cash on Delivery
+                      </span>
+                      <span className="rounded bg-ink/10 px-2 py-0.5 text-[0.68rem] font-bold text-charcoal">
+                        + 5% tax
+                      </span>
                     </div>
                   </label>
                   {paymentMethod === "cod" && bootstrap!.codConfirmationRequired ? (
@@ -540,23 +547,24 @@ export function CheckoutPage({ gstin }: { gstin: string }) {
               ) : null}
             </fieldset>
 
-            {/* WhatsApp Assistance Banner */}
-            <div className="mt-5 flex items-center justify-between rounded-lg border border-success/30 bg-success/5 p-3.5 text-xs text-charcoal">
-              <div className="flex items-center gap-2">
+            {/* WhatsApp Help */}
+            <div className="mt-5 flex items-center justify-between rounded-lg border border-success/30 bg-success/5 p-3 text-xs text-charcoal">
+              <span className="flex items-center gap-2">
                 <MessageCircle aria-hidden="true" className="size-4 text-success shrink-0" />
-                <span>Need help with payment or ordering? Chat directly with us.</span>
-              </div>
+                Need help? Chat with us.
+              </span>
               <a
-                href={`https://wa.me/?text=${encodeURIComponent("Hi, I need assistance with my order on THREAD.")}`}
+                href={`https://wa.me/916289332132?text=${encodeURIComponent("Hi, I need assistance with my order on THREAD.")}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="font-bold text-success underline hover:text-success/80 shrink-0 ml-2"
+                className="font-bold text-success underline hover:text-success/80 ml-2"
               >
-                Chat Help
+                WhatsApp
               </a>
             </div>
           </section>
 
+          {/* Policy Accept */}
           {!session ? (
             <label className="flex items-start gap-3 rounded-lg border border-ink/10 p-5 text-sm">
               <input
@@ -578,11 +586,14 @@ export function CheckoutPage({ gstin }: { gstin: string }) {
               </span>
             </label>
           ) : null}
+
           {error ? (
             <p className="rounded-md bg-error/5 p-4 text-sm text-error" role="alert">
               {error}
             </p>
           ) : null}
+
+          {/* Place Order Button */}
           {!session ? (
             <Button
               className="w-full gap-2 font-semibold shadow-sm"
@@ -592,36 +603,50 @@ export function CheckoutPage({ gstin }: { gstin: string }) {
               variant="gold"
             >
               <ShieldCheck aria-hidden="true" className="size-5" />
-              {busy
-                ? "Processing your order…"
-                : paymentMethod === "cod"
-                  ? "Place Cash on Delivery Order"
-                  : "Proceed to Online Payment"}
+              {busy ? (
+                "Processing your order…"
+              ) : paymentMethod === "cod" ? (
+                <>
+                  Place COD Order
+                  {estimatedTotal > 0 && (
+                    <span className="ml-1 font-normal opacity-80">
+                      — Pay <Price amount={estimatedTotal} className="inline text-base font-bold" />
+                    </span>
+                  )}
+                </>
+              ) : (
+                <>
+                  Proceed to Pay
+                  {estimatedTotal > 0 && (
+                    <span className="ml-1 font-normal opacity-80">
+                      — <Price amount={estimatedTotal} className="inline text-base font-bold" />
+                    </span>
+                  )}
+                </>
+              )}
             </Button>
           ) : null}
         </div>
+
+        {/* Order Summary Sidebar */}
         <CheckoutSummary
           cart={cart}
+          deliveryPaise={estimatedShipping}
           gstin={gstin}
           paymentMethod={paymentMethod}
           session={session}
         />
       </div>
+
+      {/* Mobile sticky bottom bar */}
       {!session ? (
         <div className="fixed inset-x-0 bottom-16 z-header flex items-center justify-between gap-3 border-t bg-paper p-3 shadow-raised lg:hidden">
           <div>
             <p className="text-xs text-muted">
-              Total ({paymentMethod === "cod" ? "incl. 5% COD Tax" : "incl. 3% Tax"})
+              Total (incl. delivery + {paymentMethod === "cod" ? "5%" : "3%"} tax)
             </p>
             <Price
-              amount={(() => {
-                const sub = cart.reduce(
-                  (sum, line) => sum + (line.observedUnitPricePaise ?? 0) * line.quantity,
-                  0,
-                );
-                const tax = Math.round((sub * (paymentMethod === "cod" ? 5 : 3)) / 100);
-                return sub > 0 ? sub + tax : 0;
-              })()}
+              amount={estimatedTotal}
             />
           </div>
           <Button

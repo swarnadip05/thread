@@ -5,22 +5,27 @@ import type { StoredCartLine } from "@/checkout/cart-storage";
 
 export function CheckoutSummary({
   cart,
+  deliveryPaise = 3000,
   gstin,
   session,
   paymentMethod = "payment_placeholder",
 }: {
   cart: readonly StoredCartLine[];
+  deliveryPaise?: number | undefined;
   gstin: string;
   session: CheckoutSessionDto | null;
   paymentMethod?: "payment_placeholder" | "cod" | undefined;
 }) {
-  const estimate = cart.reduce(
+  const activeMethod = session?.paymentMethod ?? paymentMethod;
+  const isCod = activeMethod === "cod";
+
+  // Estimates before session is created
+  const cartSubtotal = cart.reduce(
     (sum, line) => sum + (line.observedUnitPricePaise ?? 0) * line.quantity,
     0,
   );
-  const activeMethod = session?.paymentMethod ?? paymentMethod;
-  const isCod = activeMethod === "cod";
-  const estimatedTax = Math.round((estimate * (isCod ? 5 : 3)) / 100);
+  const estimatedTax = Math.round((cartSubtotal * (isCod ? 5 : 3)) / 100);
+  const estimatedTotal = cartSubtotal > 0 ? cartSubtotal + deliveryPaise + estimatedTax : 0;
 
   return (
     <aside className="rounded-lg border border-ink/10 bg-ivory p-5 lg:sticky lg:top-36">
@@ -54,59 +59,82 @@ export function CheckoutSummary({
           );
         })}
       </div>
+
       <dl className="mt-5 space-y-3 border-t border-ink/15 pt-5 text-sm">
+        {/* Subtotal */}
         <div className="flex justify-between">
           <dt>Subtotal</dt>
           <dd>
-            <Price amount={session?.totals.subtotalPaise ?? estimate} className="text-sm" />
+            <Price amount={session?.totals.subtotalPaise ?? cartSubtotal} className="text-sm" />
           </dd>
         </div>
+
         {session ? (
           <>
+            {/* Discount */}
+            {session.totals.discountPaise > 0 ? (
+              <div className="flex justify-between">
+                <dt>Discount</dt>
+                <dd className="text-success">
+                  −<Price amount={session.totals.discountPaise} className="text-sm" />
+                </dd>
+              </div>
+            ) : null}
+            {/* Delivery */}
             <div className="flex justify-between">
-              <dt>Discount</dt>
-              <dd className="text-success">
-                −<Price amount={session.totals.discountPaise} className="text-sm" />
-              </dd>
-            </div>
-            <div className="flex justify-between">
-              <dt>Shipping</dt>
+              <dt>Delivery</dt>
               <dd>
-                <Price amount={session.totals.shippingPaise} className="text-sm" />
+                {session.totals.shippingPaise === 0 ? (
+                  <span className="text-sm font-medium text-success">Free</span>
+                ) : (
+                  <Price amount={session.totals.shippingPaise} className="text-sm" />
+                )}
               </dd>
             </div>
+            {/* Service Tax */}
             <div className="flex justify-between">
-              <dt className="flex items-center gap-1.5">
-                <span>{isCod ? "COD Service Tax (5%)" : "Service Tax (3%)"}</span>
-              </dt>
+              <dt>{isCod ? "Service Tax (5% COD)" : "Service Tax (3%)"}</dt>
               <dd>
                 <Price amount={session.totals.taxPaise} className="text-sm font-medium" />
               </dd>
             </div>
           </>
         ) : (
-          <div className="flex justify-between">
-            <dt className="text-muted">
-              Estimated {isCod ? "COD Service Tax (5%)" : "Service Tax (3%)"}
-            </dt>
-            <dd className="text-muted">
-              <Price amount={estimatedTax} className="text-sm" />
-            </dd>
-          </div>
+          <>
+            {/* Estimated delivery */}
+            <div className="flex justify-between">
+              <dt className="text-muted">Delivery</dt>
+              <dd className="text-muted">
+                <Price amount={deliveryPaise} className="text-sm" />
+              </dd>
+            </div>
+            {/* Estimated tax */}
+            <div className="flex justify-between">
+              <dt className="text-muted">
+                Service Tax ({isCod ? "5% COD" : "3%"})
+              </dt>
+              <dd className="text-muted">
+                <Price amount={estimatedTax} className="text-sm" />
+              </dd>
+            </div>
+          </>
         )}
+
+        {/* Grand Total */}
         <div className="flex justify-between border-t border-ink/15 pt-4 text-base font-bold">
           <dt>Total</dt>
           <dd>
             <Price
-              amount={session?.totals.totalPaise ?? (estimate > 0 ? estimate + estimatedTax : 0)}
+              amount={session?.totals.totalPaise ?? estimatedTotal}
             />
           </dd>
         </div>
       </dl>
+
       {!session ? (
         <p className="mt-4 text-xs leading-5 text-muted">
-          Final service tax ({isCod ? "5% for Cash on Delivery" : "3% for Online Payment"}), coupon
-          and shipping are recalculated securely before stock is reserved.
+          Estimated total includes ₹30 delivery and {isCod ? "5% COD" : "3%"} service tax.
+          Final amount is confirmed when stock is reserved.
         </p>
       ) : null}
       <p className="mt-5 border-t border-ink/15 pt-4 text-xs text-muted">GSTIN: {gstin}</p>
