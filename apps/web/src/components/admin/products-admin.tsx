@@ -3,7 +3,7 @@
 import type { AdminProductDto, ProductStatus } from "@thread/types";
 import { Button, Price, Skeleton } from "@thread/ui";
 import Link from "next/link";
-import { Upload } from "lucide-react";
+import { Trash2, Upload } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { apiRequest } from "@/auth/auth-client";
 import { useAuth } from "@/auth/auth-provider";
@@ -46,6 +46,35 @@ export function ProductsAdmin() {
     const timer = window.setTimeout(() => void load(), 0);
     return () => window.clearTimeout(timer);
   }, [load]);
+
+  async function clearProducts(onlyWithoutImages: boolean) {
+    if (!accessToken) return;
+    const confirmMsg = onlyWithoutImages
+      ? "Are you sure you want to delete all products that have no pictures? This cannot be undone."
+      : "ARE YOU SURE? This will permanently delete ALL products in your store.";
+    if (!window.confirm(confirmMsg)) return;
+
+    setLoading(true);
+    setError("");
+    try {
+      const res = await apiRequest<{ deletedProducts: number; deletedVariants: number }>(
+        "/admin/products/clear-all",
+        accessToken,
+        {
+          method: "POST",
+          body: JSON.stringify({ onlyWithoutImages }),
+        },
+      );
+      alert(`Deleted ${res.deletedProducts} products and ${res.deletedVariants} variants.`);
+      setPage(1);
+      await load();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Failed to delete products.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function changeStatus(product: AdminProductDto, status: ProductStatus) {
     if (
       !accessToken ||
@@ -84,7 +113,31 @@ export function ProductsAdmin() {
             {result.total} products · Manage your THREAD catalogue.
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            variant="outline"
+            className="flex items-center gap-2 border-red-500/40 text-red-500 hover:bg-red-500/10"
+            onClick={() => {
+              const choice = window.prompt(
+                "To delete products without images, type 'no-images'.\nTo delete ALL products, type 'all'.",
+                "no-images",
+              );
+              if (choice === "no-images") {
+                void clearProducts(true);
+              } else if (choice === "all") {
+                void clearProducts(false);
+              }
+            }}
+            disabled={loading}
+          >
+            <Trash2 className="h-4 w-4" />
+            Delete Wrong Products
+          </Button>
+          <Button asChild variant="outline" className="flex items-center gap-2 bg-ink/10 font-semibold">
+            <Link href="/admin/products/upload">
+              📁 Upload Photos (New)
+            </Link>
+          </Button>
           <Button
             className="flex items-center gap-2"
             onClick={() => setImportOpen(true)}

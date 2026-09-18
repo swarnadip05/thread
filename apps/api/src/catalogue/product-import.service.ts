@@ -1257,4 +1257,185 @@ export class ProductImportService {
       errors,
     };
   }
+
+  /**
+   * Batch-create products from raw image files.
+   * Images are sorted alphabetically then chunked into groups of imagesPerProduct.
+   * Each group becomes one product with size-based pricing (S/M, L/XL, 2XL).
+   */
+  async batchUploadFromImages(options: {
+    files: Array<{ buffer: Buffer; filename: string; originalname: string }>;
+    audience: "men" | "women" | "unisex";
+    categorySlug: string;
+    categoryName: string;
+    imagesPerProduct: number;
+    priceSMPaise: number;
+    priceLXLPaise: number;
+    priceXXLPaise: number;
+    mrpPaise: number;
+    stockPerSize: number;
+    productType: "oversized" | "regular";
+    actorId: string;
+  }): Promise<{
+    productsCreated: number;
+    variantsCreated: number;
+    imagesUploaded: number;
+    errors: string[];
+  }> {
+    const {
+      files,
+      audience,
+      categorySlug,
+      categoryName,
+      imagesPerProduct,
+      priceSMPaise,
+      priceLXLPaise,
+      priceXXLPaise,
+      mrpPaise,
+      stockPerSize,
+      productType,
+    } = options;
+
+    const errors: string[] = [];
+    let productsCreated = 0;
+    let variantsCreated = 0;
+    let imagesUploaded = 0;
+
+    // Sort by filename so sequential photos stay in order
+    const sorted = [...files].sort((a, b) => a.originalname.localeCompare(b.originalname));
+
+    // Chunk into groups of imagesPerProduct
+    const groups: typeof sorted[] = [];
+    for (let i = 0; i < sorted.length; i += imagesPerProduct) {
+      groups.push(sorted.slice(i, i + imagesPerProduct));
+    }
+
+    // Upsert category
+    const audienceLabel = audience === "men" ? "men" : audience === "women" ? "women" : "unisex";
+    let categoryDoc = await CategoryModel.findOne({ slug: categorySlug });
+    if (!categoryDoc) {
+      categoryDoc = await CategoryModel.create({
+        name: categoryName,
+        slug: categorySlug,
+        audience: audienceLabel,
+        active: true,
+      });
+    }
+    const categoryId = categoryDoc._id as mongoose.Types.ObjectId;
+
+    // Size pricing table
+    const SIZE_PRICING: Array<{ size: string; salePricePaise: number }> = [
+      { size: "S", salePricePaise: priceSMPaise },
+      { size: "M", salePricePaise: priceSMPaise },
+      { size: "L", salePricePaise: priceLXLPaise },
+      { size: "XL", salePricePaise: priceLXLPaise },
+      { size: "2XL", salePricePaise: priceXXLPaise },
+    ];
+
+    const typeLabel = productType === "oversized" ? "Oversized" : "Regular";
+    const audiencePrefix =
+      audience === "men" ? "Men's" : audience === "women" ? "Women's" : "";
+
+    for (let groupIndex = 0; groupIndex < groups.length; groupIndex++) {
+      const group = groups[groupIndex]!;
+      const productNumber = groupIndex + 1;
+      const title = `${audiencePrefix} ${typeLabel} Graphic T-Shirt #${productNumber}`.trim();
+      const slug = generateSlug(`${audienceLabel}-${typeLabel.toLowerCase()}-graphic-tshirt-${productNumber}`);
+
+      // Upload images to Cloudinary
+      const media: ProductMedia[] = [];
+      for (let imgIdx = 0; imgIdx < group.length; imgIdx++) {
+        const img = group[imgIdx]!;
+        try {
+          if (this.cloudinary) {
+            const uploaded = await this.cloudinary.uploadBuffer(img.buffer, img.originalname);
+            media.push({
+              publicId: uploaded.publicId,
+              secureUrl: uploaded.secureUrl,
+              width: uploaded.width,
+              height: uploaded.height,
+              format: (uploaded.format || "jpg") as ProductMedia["format"],
+              mimeType: (uploaded.mimeType || "image/jpeg") as ProductMedia["mimeType"],
+              bytes: uploaded.bytes,
+              alt: `${title} — view ${imgIdx + 1}`,
+              sortOrder: imgIdx,
+              primary: imgIdx === 0,
+            });
+            imagesUploaded++;
+          }
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err);
+          errors.push(`[Product #${productNumber}] image ${img.originalname}: ${msg}`);
+        }
+      }
+
+      const shortDescription = `${audiencePrefix} ${typeLabel.toLowerCase()} fit DTF graphic T-shirt. Comfortable, stylish, and perfect for everyday wear.`.trim();
+      const descriptionHtml = `<p>${shortDescription}</p><ul><li>100% Combed Cotton</li><li>DTF graphic print</li><li>Regular fit</li></ul>`;
+
+      try {
+        const productDoc = await ProductModel.findOneAndUpdate(
+          { slug },
+          {
+            $set: {
+              title,
+              shortDescription,
+              descriptionHtml,
+              categoryIds: [categoryId],
+              collectionIds: [],
+              audience: audienceLabel,
+              brand: "THREAD",
+              tags: [typeLabel.toLowerCase(), audienceLabel, "graphic", "t-shirt", "dtf"],
+              fit: typeLabel,
+              material: "100% Combed Cotton",
+              care: DEFAULT_CARE,
+              status: "active",
+              featured: true,
+              newArrival: true,
+              publishedAt: new Date(),
+              seo: {
+                title: `${title} | THREAD`,
+                description: shortDescription,
+                noIndex: false,
+              },
+              ...(media.length > 0 ? { media } : {}),
+            },
+            $setOnInsert: { createdAt: new Date() },
+          },
+          { upsert: true, new: true },
+        );
+        productsCreated++;
+
+        // Create size variants
+        const productId = productDoc._id as mongoose.Types.ObjectId;
+        for (const { size, salePricePaise } of SIZE_PRICING) {
+          const discountPct =
+            mrpPaise > 0 ? Math.round(((mrpPaise - salePricePaise) / mrpPaise) * 100) : 0;
+          await ProductVariantModel.findOneAndUpdate(
+            { productId, size, colour: "Standard" },
+            {
+              $set: {
+                productId,
+                size,
+                colour: "Standard",
+                colourHex: "#000000",
+                salePricePaise,
+                mrpPaise,
+                discountPercent: discountPct,
+                stockOnHand: stockPerSize,
+                status: "active",
+              },
+              $setOnInsert: { createdAt: new Date() },
+            },
+            { upsert: true },
+          );
+          variantsCreated++;
+        }
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        errors.push(`[Product #${productNumber}] DB error: ${msg}`);
+      }
+    }
+
+    return { productsCreated, variantsCreated, imagesUploaded, errors };
+  }
 }

@@ -34,6 +34,8 @@ import type { CatalogueService } from "../catalogue.service.js";
 import { ProductImportService } from "../product-import.service.js";
 import type { DeliveryEligibilityProvider } from "../delivery/delivery.provider.js";
 import type { ReviewService } from "../reviews/review.service.js";
+import { ProductModel } from "../models/product.model.js";
+import { ProductVariantModel } from "../models/product-variant.model.js";
 
 function context(request: Request): AuthContext {
   const userAgent = request.header("user-agent")?.slice(0, 512);
@@ -396,6 +398,92 @@ export function createCatalogueRouter(
     );
     response.json({ success: true, data: result });
   });
+
+  // ── Batch photo upload wizard ────────────────────────────────────────────────
+  const uploadMany = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
+  router.post(
+    "/admin/products/batch-upload",
+    catalogueRoles,
+    uploadMany.array("files", 500),
+    async (request, response) => {
+      const files = (request.files as Express.Multer.File[]) ?? [];
+      if (!files.length) throw new HttpError(400, "NO_FILES", "No images were uploaded.");
+      const body = request.body as Record<string, string>;
+      const audience = (body.audience || "unisex") as "men" | "women" | "unisex";
+      const categorySlug = body.category || "oversized-t-shirts";
+      const categoryName =
+        categorySlug === "oversized-t-shirts" ? "Oversized T-Shirts" : "Classic Fit T-Shirts";
+      const imagesPerProduct = Math.max(1, Math.min(20, Number(body.imagesPerProduct) || 5));
+      const priceSMPaise = Math.round((Number(body.priceSM) || 549) * 100);
+      const priceLXLPaise = Math.round((Number(body.priceLXL) || 599) * 100);
+      const priceXXLPaise = Math.round((Number(body.priceXXL) || 649) * 100);
+      const mrpPaise = Math.round((Number(body.mrp) || 899) * 100);
+      const stockPerSize = Math.max(1, Number(body.stockPerSize) || 25);
+      const productType = (body.productType || "oversized") as "oversized" | "regular";
+      try {
+        const result = await importService.batchUploadFromImages({
+          files: files.map((f) => ({
+            buffer: f.buffer,
+            filename: f.filename || f.originalname,
+            originalname: f.originalname,
+          })),
+          audience,
+          categorySlug,
+          categoryName,
+          imagesPerProduct,
+          priceSMPaise,
+          priceLXLPaise,
+          priceXXLPaise,
+          mrpPaise,
+          stockPerSize,
+          productType,
+          actorId: request.auth!.userId,
+        });
+        response.json({ success: true, data: result });
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        throw new HttpError(400, "BATCH_UPLOAD_FAILED", `Batch upload failed: ${msg}`);
+      }
+    },
+  );
+
+  // ── Clear products (admin reset) ────────────────────────────────────────────
+  router.post("/admin/products/clear-all", catalogueRoles, async (request, response) => {
+    const onlyWithoutImages = request.body?.onlyWithoutImages === true;
+
+    if (onlyWithoutImages) {
+      const wrongProducts = await ProductModel.find({
+        $or: [
+          { media: { $exists: false } },
+          { media: { $size: 0 } },
+          { "media.0": { $exists: false } },
+        ],
+      })
+        .select("_id")
+        .lean();
+
+      const wrongIds = wrongProducts.map((p) => p._id);
+      const [products, variants] = await Promise.all([
+        ProductModel.deleteMany({ _id: { $in: wrongIds } }),
+        ProductVariantModel.deleteMany({ productId: { $in: wrongIds } }),
+      ]);
+      response.json({
+        success: true,
+        data: { deletedProducts: products.deletedCount, deletedVariants: variants.deletedCount },
+      });
+      return;
+    }
+
+    const [products, variants] = await Promise.all([
+      ProductModel.deleteMany({}),
+      ProductVariantModel.deleteMany({}),
+    ]);
+    response.json({
+      success: true,
+      data: { deletedProducts: products.deletedCount, deletedVariants: variants.deletedCount },
+    });
+  });
+
   router.post(
     "/admin/products/bulk",
     catalogueRoles,

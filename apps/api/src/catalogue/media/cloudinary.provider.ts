@@ -156,15 +156,16 @@ export class CloudinaryMediaProvider implements MediaProvider {
   }> {
     const targetFolder = folder ?? this.config.folder;
     const timestamp = Math.floor(Date.now() / 1000);
+    // public_id already contains the folder path — do NOT pass folder separately
+    // or Cloudinary will double-count it in the signature and reject the request.
     const publicId = `${targetFolder}/${Date.now()}-${filename.replace(/[^a-zA-Z0-9._-]/g, "_").replace(/\.[^.]+$/, "")}`;
-    const parameters = { folder: targetFolder, public_id: publicId, timestamp };
+    const parameters = { public_id: publicId, timestamp };
     const signature = this.sign(parameters);
 
     const form = new FormData();
     form.append("file", new Blob([new Uint8Array(buffer)]), filename);
     form.append("api_key", this.config.apiKey);
     form.append("timestamp", String(timestamp));
-    form.append("folder", targetFolder);
     form.append("public_id", publicId);
     form.append("signature", signature);
 
