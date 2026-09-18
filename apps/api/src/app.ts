@@ -125,7 +125,7 @@ export function createApp(dependencies: AppDependencies): Express {
   );
   app.use(rejectPrototypePollution);
   app.use(requireJsonContentType);
-  app.use(express.json({ limit: "1mb", strict: true }));
+  app.use(express.json({ limit: "50mb", strict: true }));
 
   app.get("/api/v1/health", async (request, response) => {
     const details = dependencies.healthDetails
