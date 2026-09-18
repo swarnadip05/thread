@@ -26,10 +26,18 @@ export function createErrorHandler(logger: Logger): ErrorRequestHandler {
         "DUPLICATE_RECORD",
         "This slug, email, SKU or variant combination already exists.",
       );
-    const httpError =
+    const isCustomHttp =
+      typeof error === "object" &&
+      error !== null &&
+      "statusCode" in error &&
+      typeof (error as { statusCode: unknown }).statusCode === "number" &&
+      "code" in error;
+    const httpError: HttpError | AuthError | SafeProviderError | null =
       error instanceof HttpError || error instanceof AuthError || error instanceof SafeProviderError
         ? error
-        : null;
+        : isCustomHttp
+          ? (error as HttpError)
+          : null;
     const bodyParserError =
       typeof error === "object" && error !== null && "type" in error
         ? String(error.type)

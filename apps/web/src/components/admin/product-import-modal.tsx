@@ -168,8 +168,17 @@ export function ProductImportModal({ isOpen, onClose, onSuccess }: ProductImport
         body: formData,
       });
       if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
-        throw new Error(body?.error?.message ?? `Server error ${res.status}`);
+        const body = (await res.json().catch(() => ({}))) as {
+          error?: { message?: string; code?: string };
+        };
+        const errorMsg =
+          body?.error?.message ??
+          (res.status === 504 || res.status === 502
+            ? "Gateway Timeout (504/502): The cloud server proxy timed out. Please ensure the backend is active."
+            : res.status === 500
+              ? "Internal Server Error (500): Database write or cloud media error."
+              : `Server error ${res.status}`);
+        throw new Error(errorMsg);
       }
       const json = (await res.json()) as { success: boolean; data: ImportExecutionData };
       if (!json.success) throw new Error("Unexpected server response");
