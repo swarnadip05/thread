@@ -36,6 +36,7 @@ export function composeCheckout(
   jobs: CommerceJobQueue,
   jobProcessor: CommerceJobProcessor,
   notifications: NotificationService,
+  optionalAuthenticate?: RequestHandler,
 ): CheckoutComposition {
   const repository = new MongooseCheckoutRepository(config.maxCartQuantity);
   const audits = new MongooseAuditRepository();
@@ -56,7 +57,7 @@ export function composeCheckout(
     notifications,
   );
   return {
-    router: createCheckoutRouter(service, authenticate, config.webOrigin),
+    router: createCheckoutRouter(service, authenticate, config.webOrigin, optionalAuthenticate),
     paymentRouter: createPaymentRouter(paymentService, authenticate, config.webOrigin),
     paymentWebhookRouter: createPaymentWebhookRouter(paymentService),
     paymentService,

@@ -4,7 +4,7 @@ import type { RequestHandler, Router } from "express";
 import type { ApiConfig } from "../config/env.js";
 import { AuthService } from "./auth.service.js";
 import { createAuthRouter } from "./http/auth.router.js";
-import { authenticate } from "./http/security.middleware.js";
+import { authenticate, optionalAuthenticate } from "./http/security.middleware.js";
 import { DevelopmentEmailProvider, UnconfiguredEmailProvider } from "./providers/email.provider.js";
 import { GoogleOAuthProvider } from "./providers/google-oauth.provider.js";
 import {
@@ -22,6 +22,7 @@ import type { EmailProvider } from "./providers/email.provider.js";
 export interface AuthComposition {
   readonly accessTokens: AccessTokenService;
   readonly authenticate: RequestHandler;
+  readonly optionalAuthenticate: RequestHandler;
   readonly router: Router;
 }
 
@@ -63,6 +64,7 @@ export function composeAuth(
   return {
     accessTokens,
     authenticate: authenticateRequest,
+    optionalAuthenticate: optionalAuthenticate(accessTokens),
     router: createAuthRouter(auth, authenticateRequest, {
       ...(config.cookieDomain ? { cookieDomain: config.cookieDomain } : {}),
       ...(googleOAuth ? { googleOAuth } : {}),

@@ -13,9 +13,5 @@ export const metadata: Metadata = {
 export default async function CheckoutRoute() {
   const settings = await loadPublicSettings();
 
-  return (
-    <ProtectedRoute allowedRoles={["customer"]}>
-      <CheckoutPage gstin={settings.gstin} />
-    </ProtectedRoute>
-  );
+  return <CheckoutPage gstin={settings.gstin} />;
 }

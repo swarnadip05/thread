@@ -45,6 +45,7 @@ export function createCheckoutRouter(
   service: CheckoutService,
   authenticate: RequestHandler,
   webOrigin: string,
+  optionalAuthenticate?: RequestHandler,
 ): Router {
   const router = Router();
   const mutationSecurity = [createOriginGuard(webOrigin), requireCsrf];
@@ -57,10 +58,17 @@ export function createCheckoutRouter(
   );
   const couponRoles = requireRoles("super_admin", "admin", "catalog_manager");
 
-  router.use("/checkout", authenticate);
-  router.get("/checkout/bootstrap", async (request, response) =>
-    response.json({ success: true, data: await service.bootstrap(request.auth!.userId) }),
+  router.get(
+    "/checkout/bootstrap",
+    optionalAuthenticate ?? ((_req, _res, next) => next()),
+    async (request, response) =>
+      response.json({
+        success: true,
+        data: await service.bootstrap(request.auth?.userId ?? ""),
+      }),
   );
+
+  router.use("/checkout", authenticate);
   router.post(
     "/checkout/addresses",
     ...mutationSecurity,

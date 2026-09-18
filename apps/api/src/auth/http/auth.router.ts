@@ -94,6 +94,22 @@ export function createAuthRouter(
       response.status(201).json({ success: true, data: auth.toDto(session) });
     },
   );
+  router.post(
+    "/guest",
+    authRateLimit(config.loginRateLimit ?? 20, 15 * 60_000),
+    async (request, response) => {
+      const { name, phone, email } = request.body || {};
+      if (!name || (!phone && !email)) {
+        return response.status(400).json({
+          success: false,
+          error: { code: "INVALID_GUEST_INPUT", message: "Name and phone or email are required." },
+        });
+      }
+      const session = await auth.guestSession({ name, phone, email }, context(request));
+      setSession(response, session);
+      response.status(200).json({ success: true, data: auth.toDto(session) });
+    },
+  );
   router.delete(
     "/account",
     accessTokenMiddleware,

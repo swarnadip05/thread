@@ -7,15 +7,21 @@ export function CheckoutSummary({
   cart,
   gstin,
   session,
+  paymentMethod = "payment_placeholder",
 }: {
   cart: readonly StoredCartLine[];
   gstin: string;
   session: CheckoutSessionDto | null;
+  paymentMethod?: "payment_placeholder" | "cod" | undefined;
 }) {
   const estimate = cart.reduce(
     (sum, line) => sum + (line.observedUnitPricePaise ?? 0) * line.quantity,
     0,
   );
+  const activeMethod = session?.paymentMethod ?? paymentMethod;
+  const isCod = activeMethod === "cod";
+  const estimatedTax = Math.round((estimate * (isCod ? 5 : 3)) / 100);
+
   return (
     <aside className="rounded-lg border border-ink/10 bg-ivory p-5 lg:sticky lg:top-36">
       <h2 className="text-xl font-semibold">Order summary</h2>
@@ -70,24 +76,37 @@ export function CheckoutSummary({
               </dd>
             </div>
             <div className="flex justify-between">
-              <dt>Configured tax</dt>
+              <dt className="flex items-center gap-1.5">
+                <span>{isCod ? "COD Service Tax (5%)" : "Service Tax (3%)"}</span>
+              </dt>
               <dd>
-                <Price amount={session.totals.taxPaise} className="text-sm" />
+                <Price amount={session.totals.taxPaise} className="text-sm font-medium" />
               </dd>
             </div>
           </>
-        ) : null}
+        ) : (
+          <div className="flex justify-between">
+            <dt className="text-muted">
+              Estimated {isCod ? "COD Service Tax (5%)" : "Service Tax (3%)"}
+            </dt>
+            <dd className="text-muted">
+              <Price amount={estimatedTax} className="text-sm" />
+            </dd>
+          </div>
+        )}
         <div className="flex justify-between border-t border-ink/15 pt-4 text-base font-bold">
           <dt>Total</dt>
           <dd>
-            <Price amount={session?.totals.totalPaise ?? estimate} />
+            <Price
+              amount={session?.totals.totalPaise ?? (estimate > 0 ? estimate + estimatedTax : 0)}
+            />
           </dd>
         </div>
       </dl>
       {!session ? (
         <p className="mt-4 text-xs leading-5 text-muted">
-          Final prices, configured tax, coupon and shipping are recalculated by THREAD before stock
-          is reserved.
+          Final service tax ({isCod ? "5% for Cash on Delivery" : "3% for Online Payment"}), coupon
+          and shipping are recalculated securely before stock is reserved.
         </p>
       ) : null}
       <p className="mt-5 border-t border-ink/15 pt-4 text-xs text-muted">GSTIN: {gstin}</p>

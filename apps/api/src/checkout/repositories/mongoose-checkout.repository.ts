@@ -260,7 +260,9 @@ export class MongooseCheckoutRepository implements CheckoutRepository {
   constructor(private readonly maxCartQuantity = 10) {}
   async bootstrap(userId: string): Promise<CheckoutBootstrapDto> {
     const [addresses, shippingMethods, settingsRecord] = await Promise.all([
-      CheckoutAddressModel.find({ userId }).sort({ isDefault: -1, updatedAt: -1 }).lean(),
+      userId
+        ? CheckoutAddressModel.find({ userId }).sort({ isDefault: -1, updatedAt: -1 }).lean()
+        : Promise.resolve([]),
       ShippingMethodModel.find({ active: true }).sort({ sortOrder: 1, name: 1 }).lean(),
       SiteSettingsModel.findOne({ key: "default" }).select({ checkout: 1 }).lean(),
     ]);
@@ -444,7 +446,6 @@ export class MongooseCheckoutRepository implements CheckoutRepository {
           };
         });
         const subtotalPaise = items.reduce((sum, item) => sum + item.lineSubtotalPaise, 0);
-        const taxPaise = items.reduce((sum, item) => sum + item.taxPaise, 0);
         let coupon: WithId<Coupon> | null = null;
         let discountPaise = 0;
         if (input.checkout.couponCode) {
@@ -478,6 +479,9 @@ export class MongooseCheckoutRepository implements CheckoutRepository {
           shipping.freeShippingThresholdPaise,
           discountedSubtotal,
         );
+        // User requested: 3% service tax for advance / online payment, 5% service tax for COD
+        const serviceTaxBps = input.checkout.paymentMethod === "cod" ? 500 : 300;
+        const taxPaise = Math.round((discountedSubtotal * serviceTaxBps) / 10_000);
         const totalPaise = discountedSubtotal + shippingPaise + taxPaise;
         if (input.checkout.paymentMethod === "cod") {
           const prefixAllowed =
@@ -698,7 +702,6 @@ export class MongooseCheckoutRepository implements CheckoutRepository {
       return { lineSubtotalPaise: lineSubtotal, taxPaise };
     });
     const subtotalPaise = currentItems.reduce((sum, item) => sum + item.lineSubtotalPaise, 0);
-    const taxPaise = currentItems.reduce((sum, item) => sum + item.taxPaise, 0);
     if (
       coupon &&
       (subtotalPaise < coupon.minimumSubtotalPaise ||
@@ -716,6 +719,9 @@ export class MongooseCheckoutRepository implements CheckoutRepository {
       shipping.freeShippingThresholdPaise,
       discountedSubtotal,
     );
+    // User requested: 3% service tax for advance / online payment
+    const serviceTaxBps = 300;
+    const taxPaise = Math.round((discountedSubtotal * serviceTaxBps) / 10_000);
     const totals: TotalsSnapshot = {
       subtotalPaise,
       discountPaise,

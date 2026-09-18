@@ -46,19 +46,27 @@ export function CheckoutPage({ gstin }: { gstin: string }) {
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
-    if (!auth.accessToken) return;
     try {
+      if (auth.status === "unknown") {
+        await auth.refresh();
+      }
       const [data, storedSessionId] = await Promise.all([
-        apiRequest<CheckoutBootstrapDto>("/checkout/bootstrap", auth.accessToken),
+        apiRequest<CheckoutBootstrapDto>("/checkout/bootstrap", auth.accessToken ?? ""),
         Promise.resolve(readCheckoutSessionId()),
       ]);
       setBootstrap(data);
       setCart(readCart());
-      setAddressId(
-        data.addresses.find((address) => address.isDefault)?.id ?? data.addresses[0]?.id ?? "",
-      );
+      const initialAddress =
+        data.addresses.find((address) => address.isDefault)?.id ?? data.addresses[0]?.id ?? "";
+      setAddressId(initialAddress);
       setShippingMethodId(data.shippingMethods[0]?.id ?? "");
-      if (storedSessionId) {
+
+      // If user has no saved addresses, automatically open address form
+      if (data.addresses.length === 0) {
+        setShowAddressForm(true);
+      }
+
+      if (storedSessionId && auth.accessToken) {
         const existing = await apiRequest<CheckoutSessionDto>(
           `/checkout/sessions/${storedSessionId}`,
           auth.accessToken,
@@ -69,7 +77,7 @@ export function CheckoutPage({ gstin }: { gstin: string }) {
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Checkout could not be loaded.");
     }
-  }, [auth.accessToken]);
+  }, [auth.accessToken, auth.refresh, auth.status]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void load(), 0);
@@ -85,9 +93,19 @@ export function CheckoutPage({ gstin }: { gstin: string }) {
   };
 
   const createCheckout = async () => {
-    if (!auth.accessToken || !bootstrap) return;
-    if (!addressId || !shippingMethodId || !policyAccepted) {
-      setError("Choose an address and delivery method, then acknowledge the policies.");
+    if (!bootstrap) return;
+    if (!addressId) {
+      setShowAddressForm(true);
+      setError("Please fill in or select your delivery address to proceed.");
+      return;
+    }
+    if (!auth.accessToken) {
+      setShowAddressForm(true);
+      setError("Please save your delivery address to proceed.");
+      return;
+    }
+    if (!shippingMethodId || !policyAccepted) {
+      setError("Choose a delivery method, then acknowledge the store policies.");
       return;
     }
     if (paymentMethod === "cod" && bootstrap.codConfirmationRequired && !codConfirmationAccepted) {
@@ -317,32 +335,54 @@ export function CheckoutPage({ gstin }: { gstin: string }) {
                 </Button>
               ) : null}
             </div>
-            {showAddressForm && auth.accessToken ? (
-              <CheckoutAddressForm accessToken={auth.accessToken} onCreated={addAddress} />
+            {showAddressForm ? (
+              <CheckoutAddressForm
+                accessToken={auth.accessToken}
+                onCancel={
+                  bootstrap!.addresses.length > 0 ? () => setShowAddressForm(false) : undefined
+                }
+                onCreated={addAddress}
+              />
             ) : null}
-            <div className="mt-5 grid gap-3">
-              {bootstrap!.addresses.map((address) => (
-                <label
-                  className="flex cursor-pointer gap-3 rounded-md border border-ink/15 p-4 has-[:checked]:border-ink has-[:checked]:bg-ivory"
-                  key={address.id}
-                >
-                  <input
-                    checked={addressId === address.id}
-                    disabled={Boolean(session)}
-                    name="address"
-                    onChange={() => setAddressId(address.id)}
-                    type="radio"
-                  />
-                  <span className="text-sm">
-                    <span className="font-semibold">{address.fullName}</span>
-                    <span className="mt-1 block text-muted">
-                      {address.addressLine1}, {address.city}, {address.state} {address.postalCode}
+            {bootstrap!.addresses.length > 0 ? (
+              <div className="mt-5 grid gap-3">
+                {bootstrap!.addresses.map((address) => (
+                  <label
+                    className="flex cursor-pointer gap-3 rounded-md border border-ink/15 p-4 has-[:checked]:border-ink has-[:checked]:bg-ivory"
+                    key={address.id}
+                  >
+                    <input
+                      checked={addressId === address.id}
+                      disabled={Boolean(session)}
+                      name="address"
+                      onChange={() => setAddressId(address.id)}
+                      type="radio"
+                    />
+                    <span className="text-sm">
+                      <span className="font-semibold">{address.fullName}</span>
+                      <span className="mt-1 block text-muted">
+                        {address.addressLine1}
+                        {address.addressLine2 ? `, ${address.addressLine2}` : ""}, {address.city},{" "}
+                        {address.state} {address.postalCode}
+                      </span>
+                      <span className="mt-1 block text-muted">{address.phone}</span>
                     </span>
-                    <span className="mt-1 block text-muted">{address.phone}</span>
-                  </span>
-                </label>
-              ))}
-            </div>
+                  </label>
+                ))}
+              </div>
+            ) : !showAddressForm ? (
+              <div className="mt-4 rounded-md border border-dashed border-ink/20 p-6 text-center">
+                <p className="text-sm text-muted">No delivery address entered yet.</p>
+                <Button
+                  className="mt-3"
+                  onClick={() => setShowAddressForm(true)}
+                  size="sm"
+                  variant="gold"
+                >
+                  Enter Delivery Address
+                </Button>
+              </div>
+            ) : null}
           </section>
 
           <section className="rounded-lg border border-ink/10 p-5">
@@ -400,38 +440,53 @@ export function CheckoutPage({ gstin }: { gstin: string }) {
               <label
                 className={`flex cursor-pointer gap-3.5 rounded-lg border p-4 transition-colors ${
                   paymentMethod === "payment_placeholder"
-                    ? "border-ink bg-ivory shadow-xs"
+                    ? "border-ink bg-ivory shadow-xs ring-1 ring-gold/40"
                     : "border-ink/15 hover:border-ink/30"
                 }`}
               >
                 <input
                   checked={paymentMethod === "payment_placeholder"}
+                  className="mt-1 size-4 accent-ink"
                   disabled={Boolean(session)}
                   name="payment"
                   onChange={() => setPaymentMethod("payment_placeholder")}
                   type="radio"
-                  className="mt-1 size-4 accent-ink"
                 />
                 <div className="flex-1">
-                  <div className="flex items-center justify-between">
-                    <span className="flex items-center gap-2 font-semibold text-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="flex items-center gap-2 text-sm font-semibold">
                       <CreditCard aria-hidden="true" className="size-4 text-ink" />
-                      Online Payment (Snap Cart Razorpay Gateway)
+                      Online Advance Payment (Snap Cart Gateway)
                     </span>
-                    <span className="rounded bg-success/15 px-2 py-0.5 text-[0.68rem] font-bold uppercase tracking-wider text-success">
-                      Recommended
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="rounded bg-gold/15 px-2 py-0.5 text-[0.68rem] font-bold uppercase tracking-wider text-charcoal">
+                        3% Service Tax
+                      </span>
+                      <span className="rounded bg-success/15 px-2 py-0.5 text-[0.68rem] font-bold uppercase tracking-wider text-success">
+                        Save 2%
+                      </span>
+                    </div>
                   </div>
                   <p className="mt-1 text-xs text-muted">
-                    Merchant: <strong>Snap Cart</strong> (MID: TcQzLflfwHCkgu) • Instant UPI (GPay, PhonePe, Paytm), Cards, NetBanking & Apple Pay.
+                    Merchant: <strong>Snap Cart</strong> (MID: TcQzLflfwHCkgu) • 3% service tax. Instant UPI (GPay, PhonePe, Paytm), Cards, NetBanking & Apple Pay.
                   </p>
                   <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-[0.7rem] font-medium text-charcoal/80">
-                    <span className="rounded border border-ink/10 bg-paper px-2 py-0.5 font-bold text-success">UPI</span>
-                    <span className="rounded border border-ink/10 bg-paper px-2 py-0.5">Google Pay</span>
-                    <span className="rounded border border-ink/10 bg-paper px-2 py-0.5">PhonePe</span>
+                    <span className="rounded border border-ink/10 bg-paper px-2 py-0.5 font-bold text-success">
+                      UPI
+                    </span>
+                    <span className="rounded border border-ink/10 bg-paper px-2 py-0.5">
+                      Google Pay
+                    </span>
+                    <span className="rounded border border-ink/10 bg-paper px-2 py-0.5">
+                      PhonePe
+                    </span>
                     <span className="rounded border border-ink/10 bg-paper px-2 py-0.5">Paytm</span>
-                    <span className="rounded border border-ink/10 bg-paper px-2 py-0.5">RuPay / Visa / Mastercard</span>
-                    <span className="rounded border border-ink/10 bg-paper px-2 py-0.5">Apple Pay</span>
+                    <span className="rounded border border-ink/10 bg-paper px-2 py-0.5">
+                      RuPay / Visa / Mastercard
+                    </span>
+                    <span className="rounded border border-ink/10 bg-paper px-2 py-0.5">
+                      Net Banking
+                    </span>
                   </div>
                 </div>
               </label>
@@ -442,30 +497,30 @@ export function CheckoutPage({ gstin }: { gstin: string }) {
                   <label
                     className={`flex cursor-pointer gap-3.5 rounded-lg border p-4 transition-colors ${
                       paymentMethod === "cod"
-                        ? "border-ink bg-ivory shadow-xs"
+                        ? "border-ink bg-ivory shadow-xs ring-1 ring-ink/20"
                         : "border-ink/15 hover:border-ink/30"
                     }`}
                   >
                     <input
                       checked={paymentMethod === "cod"}
+                      className="mt-1 size-4 accent-ink"
                       disabled={Boolean(session)}
                       name="payment"
                       onChange={() => setPaymentMethod("cod")}
                       type="radio"
-                      className="mt-1 size-4 accent-ink"
                     />
                     <div className="flex-1">
-                      <div className="flex items-center justify-between">
-                        <span className="flex items-center gap-2 font-semibold text-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="flex items-center gap-2 text-sm font-semibold">
                           <Banknote aria-hidden="true" className="size-4 text-ink" />
                           Cash on Delivery (COD)
                         </span>
-                        <span className="rounded bg-ink/5 px-2 py-0.5 text-[0.68rem] font-medium text-muted">
-                          Pay at Doorstep
+                        <span className="rounded bg-ink/10 px-2 py-0.5 text-[0.68rem] font-bold text-charcoal">
+                          5% Service Tax & Handling
                         </span>
                       </div>
                       <p className="mt-1 text-xs text-muted">
-                        Pay via cash or delivery agent's UPI QR code when package arrives.
+                        5% service tax & handling fee charged for doorstep delivery collection. Pay via cash or delivery agent's UPI QR code.
                       </p>
                     </div>
                   </label>
@@ -545,24 +600,35 @@ export function CheckoutPage({ gstin }: { gstin: string }) {
             </Button>
           ) : null}
         </div>
-        <CheckoutSummary cart={cart} gstin={gstin} session={session} />
+        <CheckoutSummary
+          cart={cart}
+          gstin={gstin}
+          paymentMethod={paymentMethod}
+          session={session}
+        />
       </div>
       {!session ? (
         <div className="fixed inset-x-0 bottom-16 z-header flex items-center justify-between gap-3 border-t bg-paper p-3 shadow-raised lg:hidden">
           <div>
-            <p className="text-xs text-muted">Estimated</p>
+            <p className="text-xs text-muted">
+              Total ({paymentMethod === "cod" ? "incl. 5% COD Tax" : "incl. 3% Tax"})
+            </p>
             <Price
-              amount={cart.reduce(
-                (sum, line) => sum + (line.observedUnitPricePaise ?? 0) * line.quantity,
-                0,
-              )}
+              amount={(() => {
+                const sub = cart.reduce(
+                  (sum, line) => sum + (line.observedUnitPricePaise ?? 0) * line.quantity,
+                  0,
+                );
+                const tax = Math.round((sub * (paymentMethod === "cod" ? 5 : 3)) / 100);
+                return sub > 0 ? sub + tax : 0;
+              })()}
             />
           </div>
           <Button
+            className="font-semibold"
             disabled={busy || bootstrap!.shippingMethods.length === 0}
             onClick={() => void createCheckout()}
             variant="gold"
-            className="font-semibold"
           >
             {busy ? "Processing…" : paymentMethod === "cod" ? "Place COD Order" : "Proceed to Pay"}
           </Button>

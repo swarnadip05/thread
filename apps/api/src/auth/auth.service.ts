@@ -57,6 +57,37 @@ export class AuthService {
     return this.createSession(user, context);
   }
 
+  async guestSession(
+    input: { name: string; phone?: string; email?: string },
+    context: AuthContext,
+  ): Promise<PublicAuthSession> {
+    const cleanPhone = input.phone?.trim() ? input.phone.trim() : undefined;
+    const cleanEmail = input.email?.trim() ? input.email.trim().toLowerCase() : undefined;
+
+    let user: AuthUserRecord | null = null;
+    if (cleanPhone) {
+      user = await this.users.findByPhone(cleanPhone);
+    }
+    if (!user && cleanEmail) {
+      user = await this.users.findByEmail(cleanEmail);
+    }
+    if (!user) {
+      user = await this.users.create({
+        name: input.name.trim() || "Customer",
+        ...(cleanPhone ? { phone: cleanPhone } : {}),
+        ...(cleanEmail ? { email: cleanEmail } : {}),
+        roles: ["customer"],
+      });
+      await this.audits.record({
+        action: "auth.guest_registered",
+        actorId: user.id,
+        context,
+        entityId: user.id,
+      });
+    }
+    return this.createSession({ ...user, failedAttempts: 0 }, context);
+  }
+
   async login(input: LoginInput, context: AuthContext): Promise<PublicAuthSession> {
     const user = await this.users.findByEmail(input.email, true);
     const valid = await verifyPassword(user?.passwordHash, input.password);

@@ -99,6 +99,24 @@ export function authenticate(accessTokens: AccessTokenService): RequestHandler {
   };
 }
 
+export function optionalAuthenticate(accessTokens: AccessTokenService): RequestHandler {
+  return async (request, _response, next) => {
+    const authorization = request.header("authorization");
+    if (!authorization?.startsWith("Bearer ")) return next();
+    try {
+      const claims = await accessTokens.verify(authorization.slice(7));
+      request.auth = {
+        userId: claims.subject,
+        roles: claims.roles,
+        sessionFamilyId: claims.sessionFamilyId,
+      };
+    } catch {
+      // Ignored for optional authentication
+    }
+    next();
+  };
+}
+
 export function requireRoles(...allowed: readonly UserRole[]): RequestHandler {
   return (request, _response, next) => {
     if (!request.auth || !request.auth.roles.some((role) => allowed.includes(role)))

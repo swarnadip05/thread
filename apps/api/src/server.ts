@@ -49,6 +49,7 @@ const checkoutComposition = composeCheckout(
   jobs,
   notificationComposition.processor,
   notificationComposition.service,
+  authComposition.optionalAuthenticate,
 );
 const reliability = new ReliabilityReconciliationService(
   checkoutComposition.checkoutService,
