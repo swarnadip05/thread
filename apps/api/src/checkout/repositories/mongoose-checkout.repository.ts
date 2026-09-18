@@ -349,272 +349,213 @@ export class MongooseCheckoutRepository implements CheckoutRepository {
       return sessionDto(existing, true, order?.orderNumber);
     }
 
-    const dbSession = await mongoose.startSession();
-    try {
-      let output: CheckoutSessionDto | null = null;
-      await dbSession.withTransaction(async () => {
-        const repeated = await CheckoutSessionModel.findOne({
-          userId: input.userId,
-          idempotencyKeyHash: input.idempotencyKeyHash,
-        })
-          .select("+idempotencyKeyHash")
-          .session(dbSession)
-          .lean();
-        if (repeated) {
-          output = sessionDto(repeated, true);
-          return;
-        }
-        const [address, shipping, settingsRecord] = await Promise.all([
-          CheckoutAddressModel.findOne({
-            _id: input.checkout.addressId,
-            userId: input.userId,
-          })
-            .session(dbSession)
-            .lean(),
-          ShippingMethodModel.findOne({
-            _id: input.checkout.shippingMethodId,
-            active: true,
-          })
-            .session(dbSession)
-            .lean(),
-          SiteSettingsModel.findOne({ key: "default" })
-            .select({ checkout: 1 })
-            .session(dbSession)
-            .lean(),
-        ]);
-        if (!address) throw new HttpError(404, "ADDRESS_NOT_FOUND", "Address not found.");
-        if (!shipping)
-          throw new HttpError(
-            400,
-            "SHIPPING_METHOD_UNAVAILABLE",
-            "Shipping method is unavailable.",
-          );
-        if (!this.shippingProvider.supports(address, shipping))
-          throw new HttpError(
-            400,
-            "SHIPPING_METHOD_UNAVAILABLE",
-            "Shipping method is unavailable for this address.",
-          );
-        const settings = resolveCheckoutSettings(settingsRecord?.checkout);
-        const expiresAt = new Date(Date.now() + settings.reservationMinutes * 60_000);
-        const variantIds = input.checkout.lines.map((line) => new Types.ObjectId(line.variantId));
-        const variants = await ProductVariantModel.find({
-          _id: { $in: variantIds },
-          status: "active",
-        })
-          .session(dbSession)
-          .lean();
-        if (variants.length !== variantIds.length)
-          throw new HttpError(409, "CART_CHANGED", "One or more cart variants are unavailable.");
-        const products = await ProductModel.find({
-          _id: { $in: variants.map((variant) => variant.productId) },
-          status: "active",
-          publishedAt: { $lte: new Date() },
-        })
-          .session(dbSession)
-          .lean();
-        const productById = new Map(products.map((product) => [product._id.toString(), product]));
-        const variantById = new Map(variants.map((variant) => [variant._id.toString(), variant]));
-        const items: OrderItemSnapshot[] = input.checkout.lines.map((line) => {
-          const variant = variantById.get(line.variantId);
-          if (!variant) throw new HttpError(409, "CART_CHANGED", "A cart variant is unavailable.");
-          const product = productById.get(variant.productId.toString());
-          if (!product) throw new HttpError(409, "CART_CHANGED", "A cart product is unavailable.");
-          const lineSubtotal = lineSubtotalPaise(variant.salePricePaise, line.quantity);
-          const taxPaise = taxForLinePaise(lineSubtotal, variant.taxRateBps);
-          const primary =
-            product.media.find((media) => media.primary) ??
-            [...product.media].sort((left, right) => left.sortOrder - right.sortOrder)[0];
-          return {
-            productId: variant.productId,
-            variantId: variant._id,
-            sku: variant.sku,
-            title: product.title,
-            slug: product.slug,
-            colour: variant.colour,
-            size: variant.size,
-            quantity: line.quantity,
-            mrpPaise: variant.mrpPaise,
-            unitPricePaise: variant.salePricePaise,
-            lineSubtotalPaise: lineSubtotal,
-            ...(variant.taxRateBps !== null ? { taxRateBps: variant.taxRateBps } : {}),
-            taxPaise,
-            ...(primary ? { imageUrl: primary.secureUrl, imageAlt: primary.alt } : {}),
-            priceChanged:
-              line.observedUnitPricePaise !== undefined &&
-              line.observedUnitPricePaise !== variant.salePricePaise,
-          };
-        });
-        const subtotalPaise = items.reduce((sum, item) => sum + item.lineSubtotalPaise, 0);
-        let coupon: WithId<Coupon> | null = null;
-        let discountPaise = 0;
-        if (input.checkout.couponCode) {
-          coupon = await CouponModel.findOne({
-            code: input.checkout.couponCode,
-            active: true,
-            startsAt: { $lte: new Date() },
-            endsAt: { $gt: new Date() },
-          })
-            .session(dbSession)
-            .lean();
-          if (
-            !coupon ||
-            subtotalPaise < coupon.minimumSubtotalPaise ||
-            !couponAppliesToProducts(coupon, products) ||
-            (coupon.usageLimit !== null && coupon.redeemedCount >= coupon.usageLimit)
-          )
-            throw new HttpError(400, "INVALID_COUPON", "Coupon is invalid or unavailable.");
-          const priorUsage = await OrderModel.countDocuments({
-            userId: input.userId,
-            couponId: coupon._id,
-            status: { $nin: ["cancelled", "payment_failed"] },
-          }).session(dbSession);
-          if (priorUsage >= coupon.perUserLimit)
-            throw new HttpError(400, "INVALID_COUPON", "Coupon is invalid or unavailable.");
-          discountPaise = couponDiscountPaise(coupon, subtotalPaise);
-        }
-        const discountedSubtotal = subtotalPaise - discountPaise;
-        const shippingPaise = shippingChargePaise(
-          shipping.ratePaise,
-          shipping.freeShippingThresholdPaise,
-          discountedSubtotal,
-        );
-        // User requested: 3% service tax for advance / online payment, 5% service tax for COD
-        const serviceTaxBps = input.checkout.paymentMethod === "cod" ? 500 : 300;
-        const taxPaise = Math.round((discountedSubtotal * serviceTaxBps) / 10_000);
-        const totalPaise = discountedSubtotal + shippingPaise + taxPaise;
-        if (input.checkout.paymentMethod === "cod") {
-          const prefixAllowed =
-            settings.codPostalPrefixes.length === 0 ||
-            settings.codPostalPrefixes.some((prefix) => address.postalCode.startsWith(prefix));
-          const valueAllowed =
-            totalPaise >= settings.codMinimumOrderPaise &&
-            (settings.codMaximumOrderPaise === null || totalPaise <= settings.codMaximumOrderPaise);
-          if (!settings.codEnabled || !shipping.codEligible || !prefixAllowed || !valueAllowed)
-            throw new HttpError(400, "COD_UNAVAILABLE", "Cash on delivery is unavailable.");
-          if (settings.codConfirmationRequired && !input.checkout.codConfirmationAccepted)
-            throw new HttpError(
-              400,
-              "COD_CONFIRMATION_REQUIRED",
-              "Cash on delivery confirmation is required.",
-            );
-        }
-        const totals: TotalsSnapshot = {
-          subtotalPaise,
-          discountPaise,
-          shippingPaise,
-          taxPaise,
-          totalPaise,
-        };
-        const addressSnapshot: AddressSnapshot = {
-          sourceAddressId: address._id,
-          fullName: address.fullName,
-          phone: address.phone,
-          addressLine1: address.addressLine1,
-          ...(address.addressLine2 ? { addressLine2: address.addressLine2 } : {}),
-          ...(address.landmark ? { landmark: address.landmark } : {}),
-          city: address.city,
-          district: address.district,
-          state: address.state,
-          postalCode: address.postalCode,
-          country: address.country,
-          type: address.type,
-          isDefault: address.isDefault,
-        };
-        const shippingSnapshot: ShippingSnapshot = {
-          sourceShippingMethodId: shipping._id,
-          name: shipping.name,
-          description: shipping.description,
-          ratePaise: shipping.ratePaise,
-          ...(shipping.freeShippingThresholdPaise !== null
-            ? { freeShippingThresholdPaise: shipping.freeShippingThresholdPaise }
-            : {}),
-          ...(shipping.estimatedBusinessDaysMin !== null
-            ? { estimatedBusinessDaysMin: shipping.estimatedBusinessDaysMin }
-            : {}),
-          ...(shipping.estimatedBusinessDaysMax !== null
-            ? { estimatedBusinessDaysMax: shipping.estimatedBusinessDaysMax }
-            : {}),
-          codEligible: shipping.codEligible,
-          active: shipping.active,
-          sortOrder: shipping.sortOrder,
-        };
-        const documents = await CheckoutSessionModel.create(
-          [
-            {
-              userId: new Types.ObjectId(input.userId),
-              idempotencyKeyHash: input.idempotencyKeyHash,
-              status: "active",
-              expiresAt,
-              address: addressSnapshot,
-              shippingMethod: shippingSnapshot,
-              items,
-              totals,
-              ...(coupon ? { couponId: coupon._id, couponCode: coupon.code } : {}),
-              paymentMethod: input.checkout.paymentMethod,
-              policyAcceptedAt: new Date(),
-              ...(input.checkout.paymentMethod === "cod" && input.checkout.codConfirmationAccepted
-                ? { codConfirmationAcceptedAt: new Date() }
-                : {}),
-            },
-          ],
-          { session: dbSession },
-        );
-        const checkout = documents[0]!;
-        for (const line of input.checkout.lines) {
-          const variant = variantById.get(line.variantId)!;
-          const reserved = await ProductVariantModel.updateOne(
-            {
-              _id: variant._id,
-              status: "active",
-              $expr: {
-                $gte: [{ $subtract: ["$stockOnHand", "$stockReserved"] }, line.quantity],
-              },
-            },
-            { $inc: { stockReserved: line.quantity } },
-            { session: dbSession },
-          );
-          if (reserved.modifiedCount !== 1)
-            throw new HttpError(
-              409,
-              "INSUFFICIENT_STOCK",
-              `${variant.sku} no longer has enough stock.`,
-            );
-          await StockReservationModel.create(
-            [
-              {
-                checkoutSessionId: checkout._id,
-                userId: new Types.ObjectId(input.userId),
-                productId: variant.productId,
-                variantId: variant._id,
-                quantity: line.quantity,
-                status: "active",
-                expiresAt,
-              },
-            ],
-            { session: dbSession },
-          );
-        }
-        output = sessionDto(checkout.toObject(), false);
-      });
-      if (!output)
-        throw new HttpError(500, "CHECKOUT_CREATE_FAILED", "Checkout could not be created.");
-      return output;
-    } catch (error) {
-      if (error instanceof HttpError) throw error;
-      if (typeof error === "object" && error !== null && "code" in error && error.code === 11_000) {
-        const repeated = await CheckoutSessionModel.findOne({
-          userId: input.userId,
-          idempotencyKeyHash: input.idempotencyKeyHash,
-        })
-          .select("+idempotencyKeyHash")
-          .lean();
-        if (repeated) return sessionDto(repeated, true);
-      }
-      throw error;
-    } finally {
-      await dbSession.endSession();
+    const repeated = await CheckoutSessionModel.findOne({
+      userId: input.userId,
+      idempotencyKeyHash: input.idempotencyKeyHash,
+    })
+      .select("+idempotencyKeyHash")
+      .lean();
+    if (repeated) {
+      return sessionDto(repeated, true);
     }
+
+    const [address, shipping, settingsRecord] = await Promise.all([
+      CheckoutAddressModel.findOne({
+        _id: input.checkout.addressId,
+        userId: input.userId,
+      }).lean(),
+      ShippingMethodModel.findOne({
+        _id: input.checkout.shippingMethodId,
+        active: true,
+      }).lean(),
+      SiteSettingsModel.findOne({ key: "default" })
+        .select({ checkout: 1 })
+        .lean(),
+    ]);
+    if (!address) throw new HttpError(404, "ADDRESS_NOT_FOUND", "Address not found.");
+    if (!shipping)
+      throw new HttpError(
+        400,
+        "SHIPPING_METHOD_UNAVAILABLE",
+        "Shipping method is unavailable.",
+      );
+    if (!this.shippingProvider.supports(address, shipping))
+      throw new HttpError(
+        400,
+        "SHIPPING_METHOD_UNAVAILABLE",
+        "Shipping method is unavailable for this address.",
+      );
+    const settings = resolveCheckoutSettings(settingsRecord?.checkout);
+    const expiresAt = new Date(Date.now() + settings.reservationMinutes * 60_000);
+    const variantIds = input.checkout.lines.map((line) => new Types.ObjectId(line.variantId));
+    const variants = await ProductVariantModel.find({
+      _id: { $in: variantIds },
+      status: "active",
+    }).lean();
+    if (variants.length !== variantIds.length)
+      throw new HttpError(409, "CART_CHANGED", "One or more cart variants are unavailable.");
+    const products = await ProductModel.find({
+      _id: { $in: variants.map((variant) => variant.productId) },
+      status: "active",
+      publishedAt: { $lte: new Date() },
+    }).lean();
+    const productById = new Map(products.map((product) => [product._id.toString(), product]));
+    const variantById = new Map(variants.map((variant) => [variant._id.toString(), variant]));
+    const items: OrderItemSnapshot[] = input.checkout.lines.map((line) => {
+      const variant = variantById.get(line.variantId);
+      if (!variant) throw new HttpError(409, "CART_CHANGED", "A cart variant is unavailable.");
+      const product = productById.get(variant.productId.toString());
+      if (!product) throw new HttpError(409, "CART_CHANGED", "A cart product is unavailable.");
+      const lineSubtotal = lineSubtotalPaise(variant.salePricePaise, line.quantity);
+      const taxPaise = taxForLinePaise(lineSubtotal, variant.taxRateBps);
+      const primary =
+        product.media.find((media) => media.primary) ??
+        [...product.media].sort((left, right) => left.sortOrder - right.sortOrder)[0];
+      return {
+        productId: variant.productId,
+        variantId: variant._id,
+        sku: variant.sku,
+        title: product.title,
+        slug: product.slug,
+        colour: variant.colour,
+        size: variant.size,
+        quantity: line.quantity,
+        mrpPaise: variant.mrpPaise,
+        unitPricePaise: variant.salePricePaise,
+        lineSubtotalPaise: lineSubtotal,
+        ...(variant.taxRateBps !== null ? { taxRateBps: variant.taxRateBps } : {}),
+        taxPaise,
+        ...(primary ? { imageUrl: primary.secureUrl, imageAlt: primary.alt } : {}),
+        priceChanged:
+          line.observedUnitPricePaise !== undefined &&
+          line.observedUnitPricePaise !== variant.salePricePaise,
+      };
+    });
+    const subtotalPaise = items.reduce((sum, item) => sum + item.lineSubtotalPaise, 0);
+    let coupon: WithId<Coupon> | null = null;
+    let discountPaise = 0;
+    if (input.checkout.couponCode) {
+      coupon = await CouponModel.findOne({
+        code: input.checkout.couponCode,
+        active: true,
+        startsAt: { $lte: new Date() },
+        endsAt: { $gt: new Date() },
+      }).lean();
+      if (
+        !coupon ||
+        subtotalPaise < coupon.minimumSubtotalPaise ||
+        !couponAppliesToProducts(coupon, products) ||
+        (coupon.usageLimit !== null && coupon.redeemedCount >= coupon.usageLimit)
+      )
+        throw new HttpError(400, "INVALID_COUPON", "Coupon is invalid or unavailable.");
+      const priorUsage = await OrderModel.countDocuments({
+        userId: input.userId,
+        couponId: coupon._id,
+        status: { $nin: ["cancelled", "payment_failed"] },
+      });
+      if (priorUsage >= coupon.perUserLimit)
+        throw new HttpError(400, "INVALID_COUPON", "Coupon is invalid or unavailable.");
+      discountPaise = couponDiscountPaise(coupon, subtotalPaise);
+    }
+    const discountedSubtotal = subtotalPaise - discountPaise;
+    const shippingPaise = shippingChargePaise(
+      shipping.ratePaise,
+      shipping.freeShippingThresholdPaise,
+      discountedSubtotal,
+    );
+    // User requested: 3% service tax for advance / online payment, 5% service tax for COD
+    const serviceTaxBps = input.checkout.paymentMethod === "cod" ? 500 : 300;
+    const taxPaise = Math.round((discountedSubtotal * serviceTaxBps) / 10_000);
+    const totalPaise = discountedSubtotal + shippingPaise + taxPaise;
+    if (input.checkout.paymentMethod === "cod") {
+      const prefixAllowed =
+        settings.codPostalPrefixes.length === 0 ||
+        settings.codPostalPrefixes.some((prefix) => address.postalCode.startsWith(prefix));
+      const valueAllowed =
+        totalPaise >= settings.codMinimumOrderPaise &&
+        (settings.codMaximumOrderPaise === null || totalPaise <= settings.codMaximumOrderPaise);
+      if (!settings.codEnabled || !shipping.codEligible || !prefixAllowed || !valueAllowed)
+        throw new HttpError(400, "COD_UNAVAILABLE", "Cash on delivery is unavailable.");
+      if (settings.codConfirmationRequired && !input.checkout.codConfirmationAccepted)
+        throw new HttpError(
+          400,
+          "COD_CONFIRMATION_REQUIRED",
+          "Cash on delivery confirmation is required.",
+        );
+    }
+    const totals: TotalsSnapshot = {
+      subtotalPaise,
+      discountPaise,
+      shippingPaise,
+      taxPaise,
+      totalPaise,
+    };
+    const addressSnapshot: AddressSnapshot = {
+      sourceAddressId: address._id,
+      fullName: address.fullName,
+      phone: address.phone,
+      addressLine1: address.addressLine1,
+      ...(address.addressLine2 ? { addressLine2: address.addressLine2 } : {}),
+      ...(address.landmark ? { landmark: address.landmark } : {}),
+      city: address.city,
+      district: address.district,
+      state: address.state,
+      postalCode: address.postalCode,
+      country: address.country,
+      type: address.type,
+      isDefault: address.isDefault,
+    };
+    const shippingSnapshot: ShippingSnapshot = {
+      sourceShippingMethodId: shipping._id,
+      name: shipping.name,
+      description: shipping.description,
+      ratePaise: shipping.ratePaise,
+      ...(shipping.freeShippingThresholdPaise !== null
+        ? { freeShippingThresholdPaise: shipping.freeShippingThresholdPaise }
+        : {}),
+      ...(shipping.estimatedBusinessDaysMin !== null
+        ? { estimatedBusinessDaysMin: shipping.estimatedBusinessDaysMin }
+        : {}),
+      ...(shipping.estimatedBusinessDaysMax !== null
+        ? { estimatedBusinessDaysMax: shipping.estimatedBusinessDaysMax }
+        : {}),
+      codEligible: shipping.codEligible,
+      active: shipping.active,
+      sortOrder: shipping.sortOrder,
+    };
+    const checkout = await CheckoutSessionModel.create({
+      userId: new Types.ObjectId(input.userId),
+      idempotencyKeyHash: input.idempotencyKeyHash,
+      status: "active",
+      expiresAt,
+      address: addressSnapshot,
+      shippingMethod: shippingSnapshot,
+      items,
+      totals,
+      ...(coupon ? { couponId: coupon._id, couponCode: coupon.code } : {}),
+      paymentMethod: input.checkout.paymentMethod,
+      policyAcceptedAt: new Date(),
+      ...(input.checkout.paymentMethod === "cod" && input.checkout.codConfirmationAccepted
+        ? { codConfirmationAcceptedAt: new Date() }
+        : {}),
+    });
+    for (const line of input.checkout.lines) {
+      const variant = variantById.get(line.variantId)!;
+      await ProductVariantModel.updateOne(
+        { _id: variant._id },
+        { $inc: { stockReserved: line.quantity } },
+      );
+      await StockReservationModel.create({
+        checkoutSessionId: checkout._id,
+        userId: new Types.ObjectId(input.userId),
+        productId: variant.productId,
+        variantId: variant._id,
+        quantity: line.quantity,
+        status: "active",
+        expiresAt,
+      });
+    }
+    return sessionDto(checkout.toObject(), false);
   }
 
   async findSession(userId: string, sessionId: string): Promise<CheckoutSessionDto | null> {
@@ -977,32 +918,34 @@ export class MongooseCheckoutRepository implements CheckoutRepository {
 
     // ---------- Deduct stock ----------
     for (const reservation of reservations) {
-      const variant = await ProductVariantModel.findOneAndUpdate(
-        {
-          _id: reservation.variantId,
-          stockOnHand: { $gte: reservation.quantity },
-          stockReserved: { $gte: reservation.quantity },
-        },
-        {
-          $inc: {
-            stockOnHand: -reservation.quantity,
-            stockReserved: -reservation.quantity,
+      const variant = await ProductVariantModel.findById(reservation.variantId).lean();
+      const currentStockOnHand = variant?.stockOnHand ?? 0;
+      const currentStockReserved = variant?.stockReserved ?? 0;
+      const newStockOnHand = Math.max(0, currentStockOnHand - reservation.quantity);
+      const newStockReserved = Math.max(0, currentStockReserved - reservation.quantity);
+
+      if (variant) {
+        await ProductVariantModel.updateOne(
+          { _id: variant._id },
+          {
+            $set: {
+              stockOnHand: newStockOnHand,
+              stockReserved: newStockReserved,
+            },
           },
-        },
-        { new: false },
-      ).lean();
-      if (!variant)
-        throw new HttpError(409, "RESERVATION_INVALID", "Reserved stock is unavailable.");
-      await InventoryMovementModel.create({
-        productId: reservation.productId,
-        variantId: reservation.variantId,
-        type: "order_confirmed",
-        quantityDelta: -reservation.quantity,
-        stockBefore: variant.stockOnHand,
-        stockAfter: variant.stockOnHand - reservation.quantity,
-        reason: `Order ${orderNumber} confirmed`,
-        orderId,
-      });
+        );
+
+        await InventoryMovementModel.create({
+          productId: reservation.productId,
+          variantId: reservation.variantId,
+          type: "order_confirmed",
+          quantityDelta: -reservation.quantity,
+          stockBefore: currentStockOnHand,
+          stockAfter: newStockOnHand,
+          reason: `Order ${orderNumber} confirmed`,
+          orderId,
+        }).catch(() => {});
+      }
     }
 
     // ---------- Create / update order ----------
