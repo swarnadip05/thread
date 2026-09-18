@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import type { AdminProductDto, ProductStatus } from "@thread/types";
 import { Badge, Button, Price, Skeleton } from "@thread/ui";
@@ -19,6 +19,7 @@ import React, { useCallback, useEffect, useState, type FormEvent } from "react";
 import { apiRequest } from "@/auth/auth-client";
 import { useAuth } from "@/auth/auth-provider";
 import { ProductImportModal } from "./product-import-modal";
+import { ProductVariantQuickManager } from "./product-variant-quick-manager";
 
 interface ProductPage {
   items: AdminProductDto[];
@@ -37,8 +38,21 @@ export function ProductsAdmin() {
   const [error, setError] = useState("");
   const [importOpen, setImportOpen] = useState(false);
 
-  // Bulk selection
+  // Bulk selection & Expanded quick editors
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [expandedProductIds, setExpandedProductIds] = useState<Set<string>>(new Set());
+
+  function toggleExpand(id: string) {
+    setExpandedProductIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }
 
   const load = useCallback(async () => {
     if (!accessToken) return;
@@ -153,6 +167,23 @@ export function ProductsAdmin() {
     }
   }
 
+  // 1-Click Toggle Single Variant Stock (Instant surety)
+  async function toggleVariantStock(variantId: string) {
+    if (!accessToken) return;
+    setBusy(variantId);
+    setError("");
+    try {
+      await apiRequest(`/admin/variants/${variantId}/toggle-stock`, accessToken, {
+        method: "PATCH",
+      });
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to toggle stock status.");
+    } finally {
+      setBusy("");
+    }
+  }
+
   // Clear products (wrong products / all)
   async function clearProducts(onlyWithoutImages: boolean) {
     if (!accessToken) return;
@@ -230,33 +261,30 @@ export function ProductsAdmin() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <Button
-            asChild
-            className="flex items-center gap-2 bg-amber-400 font-bold text-black shadow-md hover:bg-amber-300"
+          <Link
+            href="/admin/products/upload"
+            className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-amber-400 px-5 text-sm font-black text-black shadow-md hover:bg-amber-300 transition"
           >
-            <Link href="/admin/products/upload">
-              📁 Upload Photos (New)
-            </Link>
-          </Button>
-          <Button
-            className="flex items-center gap-2 bg-zinc-800 text-white border border-zinc-700 hover:bg-zinc-700 font-semibold"
+            📁 Upload Photos (New)
+          </Link>
+          <button
+            type="button"
             onClick={() => setImportOpen(true)}
-            variant="outline"
+            className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-zinc-800 border-2 border-zinc-600 px-5 text-sm font-bold text-white shadow-md hover:bg-zinc-700 transition"
           >
-            <Upload className="h-4 w-4" />
+            <Upload className="h-4 w-4 text-zinc-300" />
             Bulk Import (ZIP / Excel)
-          </Button>
-          <Button
-            asChild
-            className="bg-white font-bold text-black hover:bg-zinc-200"
+          </button>
+          <Link
+            href="/admin/products/new"
+            className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-white border-2 border-zinc-300 px-5 text-sm font-black text-black shadow-md hover:bg-zinc-100 transition"
           >
-            <Link href="/admin/products/new">
-              <Plus className="h-4 w-4 mr-1" /> Add Product
-            </Link>
-          </Button>
-          <Button
-            variant="outline"
-            className="flex items-center gap-2 border-red-500/60 bg-red-950/70 text-red-300 hover:bg-red-900/80 font-semibold"
+            <Plus className="h-4 w-4 text-black stroke-[3]" />
+            Add Product
+          </Link>
+          <button
+            type="button"
+            className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-rose-600 border border-rose-500 px-5 text-sm font-bold text-white shadow-md hover:bg-rose-700 transition disabled:opacity-50"
             onClick={() => {
               const choice = window.prompt(
                 "Type 'no-images' to delete products without pictures,\nor type 'all' to delete ALL products:",
@@ -270,9 +298,9 @@ export function ProductsAdmin() {
             }}
             disabled={loading}
           >
-            <Trash2 className="h-4 w-4" />
+            <Trash2 className="h-4 w-4 text-white" />
             Delete Wrong Products
-          </Button>
+          </button>
         </div>
       </div>
 
@@ -463,55 +491,97 @@ export function ProductsAdmin() {
 
                       {/* Variants & Size Availability Section */}
                       {sorted.length > 0 ? (
-                        <div className="space-y-1">
-                          <div className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">
-                            Available Sizes, Prices & Stock:
+                        <div className="space-y-2">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <span className="text-[11px] font-black uppercase tracking-wider text-zinc-600">
+                              Available Sizes, Prices & Stock:
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => toggleExpand(product.id)}
+                              className="inline-flex items-center gap-1 rounded-lg bg-zinc-100 px-2.5 py-1 text-xs font-bold text-zinc-800 hover:bg-amber-100 hover:text-amber-900 border border-zinc-300 transition"
+                            >
+                              ⚙ {expandedProductIds.has(product.id) ? "Close Editor" : "Edit Sizes & Prices"}
+                            </button>
                           </div>
-                          <div className="flex flex-wrap gap-1.5">
+                          <div className="flex flex-wrap gap-2">
                             {sorted.map((v, vIdx) => {
                               const inStock = v.stockOnHand > 0 && v.status === "active";
                               return (
                                 <div
                                   key={v.id || vIdx}
-                                  className={`flex items-center gap-2 rounded-lg border px-3 py-1 text-xs font-medium ${
+                                  className={`flex items-center gap-2 rounded-xl border-2 px-3 py-1.5 text-xs font-medium shadow-sm ${
                                     inStock
-                                      ? "border-emerald-300 bg-emerald-50/70 text-emerald-950"
-                                      : "border-rose-300 bg-rose-50/70 text-rose-900"
+                                      ? "border-emerald-400 bg-emerald-50 text-emerald-950"
+                                      : "border-rose-300 bg-rose-50 text-rose-900"
                                   }`}
                                 >
-                                  <span className="font-black text-sm">{v.size}</span>
-                                  <span className="font-bold text-zinc-800">
+                                  <span className="font-black text-sm bg-white px-2 py-0.5 rounded border border-zinc-200 text-black">
+                                    {v.size}
+                                  </span>
+                                  <span className="font-bold text-zinc-900">
                                     ₹{Math.round((v.salePricePaise || 0) / 100)}
                                   </span>
-                                  <span
-                                    className={`font-black text-[11px] ${
-                                      inStock ? "text-emerald-700" : "text-rose-600"
+                                  <button
+                                    type="button"
+                                    disabled={busy === v.id}
+                                    title="Click to toggle In Stock / Out of Stock instantly"
+                                    onClick={() => void toggleVariantStock(v.id)}
+                                    className={`rounded-md px-2 py-0.5 text-[11px] font-black cursor-pointer transition ${
+                                      inStock
+                                        ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                                        : "bg-rose-600 text-white hover:bg-rose-700"
                                     }`}
                                   >
-                                    {inStock ? `✓ In Stock (${v.stockOnHand})` : "✕ Out of Stock"}
-                                  </span>
+                                    {busy === v.id
+                                      ? "..."
+                                      : inStock
+                                      ? `✓ In Stock (${v.stockOnHand})`
+                                      : "✕ Out of Stock"}
+                                  </button>
                                 </div>
                               );
                             })}
                           </div>
+
+                          {/* Inline editor when expanded */}
+                          {expandedProductIds.has(product.id) && (
+                            <div className="mt-3 pt-3 border-t border-zinc-200">
+                              <ProductVariantQuickManager
+                                product={product}
+                                onSuccess={() => {
+                                  toggleExpand(product.id);
+                                  void load();
+                                }}
+                                onCancel={() => toggleExpand(product.id)}
+                              />
+                            </div>
+                          )}
                         </div>
                       ) : (
-                        /* When 0 variants exist — prominent alert with 1-click fix */
-                        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border-2 border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
-                          <div className="flex items-center gap-2 font-bold">
-                            <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0" />
-                            <span>
-                              <strong>No size variants!</strong> Customer cannot purchase until sizes are added.
-                            </span>
+                        /* When 0 variants exist — prominent interactive Quick Setup in that space */
+                        <div className="space-y-3 rounded-xl border-2 border-amber-300 bg-amber-50/70 p-4">
+                          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-amber-200 pb-3">
+                            <div className="flex items-center gap-2 font-bold text-amber-950">
+                              <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0" />
+                              <span>
+                                <strong>No size variants yet!</strong> Configure sizes, pricing & stock below to make active:
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              disabled={busy === product.id}
+                              onClick={() => void quickAddVariants(product.id)}
+                              className="rounded-lg bg-amber-500 px-3.5 py-1.5 font-black text-black hover:bg-amber-400 shadow-sm transition"
+                            >
+                              {busy === product.id ? "Adding..." : "⚡ Quick Add S, M, L, XL, 2XL (₹549 - ₹649)"}
+                            </button>
                           </div>
-                          <button
-                            type="button"
-                            disabled={busy === product.id}
-                            onClick={() => void quickAddVariants(product.id)}
-                            className="rounded-lg bg-amber-600 px-3.5 py-1.5 font-black text-white hover:bg-amber-700 shadow-sm transition"
-                          >
-                            {busy === product.id ? "Adding..." : "⚡ Add S, M, L, XL, 2XL (₹549 - ₹649)"}
-                          </button>
+                          <ProductVariantQuickManager
+                            product={product}
+                            onSuccess={() => void load()}
+                            isInitialSetup={true}
+                          />
                         </div>
                       )}
                     </div>

@@ -1276,6 +1276,11 @@ export class ProductImportService {
     stockPerSize: number;
     productType: "oversized" | "regular";
     actorId: string;
+    productCustomizations?: Array<{
+      title?: string;
+      colour?: string;
+      sizes?: string[];
+    }> | undefined;
   }): Promise<{
     productsCreated: number;
     variantsCreated: number;
@@ -1294,6 +1299,7 @@ export class ProductImportService {
       mrpPaise,
       stockPerSize,
       productType,
+      productCustomizations,
     } = options;
 
     const errors: string[] = [];
@@ -1302,7 +1308,7 @@ export class ProductImportService {
     let imagesUploaded = 0;
 
     // Sort by filename so sequential photos stay in order
-    const sorted = [...files].sort((a, b) => a.originalname.localeCompare(b.originalname));
+    const sorted = [...files].sort((a, b) => a.originalname.localeCompare(b.originalname, undefined, { numeric: true }));
 
     // Chunk into groups of imagesPerProduct
     const groups: typeof sorted[] = [];
@@ -1323,14 +1329,15 @@ export class ProductImportService {
     }
     const categoryId = categoryDoc._id as mongoose.Types.ObjectId;
 
-    // Size pricing table
-    const SIZE_PRICING: Array<{ size: string; salePricePaise: number }> = [
-      { size: "S", salePricePaise: priceSMPaise },
-      { size: "M", salePricePaise: priceSMPaise },
-      { size: "L", salePricePaise: priceLXLPaise },
-      { size: "XL", salePricePaise: priceLXLPaise },
-      { size: "2XL", salePricePaise: priceXXLPaise },
-    ];
+    // Price mapping
+    const priceMap: Record<string, number> = {
+      S: priceSMPaise,
+      M: priceSMPaise,
+      L: priceLXLPaise,
+      XL: priceLXLPaise,
+      "2XL": priceXXLPaise,
+      XXL: priceXXLPaise,
+    };
 
     const typeLabel = productType === "oversized" ? "Oversized" : "Regular";
     const audiencePrefix =
@@ -1339,8 +1346,12 @@ export class ProductImportService {
     for (let groupIndex = 0; groupIndex < groups.length; groupIndex++) {
       const group = groups[groupIndex]!;
       const productNumber = groupIndex + 1;
-      const title = `${audiencePrefix} ${typeLabel} Graphic T-Shirt #${productNumber}`.trim();
-      const slug = generateSlug(`${audienceLabel}-${typeLabel.toLowerCase()}-graphic-tshirt-${productNumber}`);
+      const custom = productCustomizations?.[groupIndex];
+
+      const productColour = custom?.colour?.trim() || "Sage Green";
+      const title = custom?.title?.trim() ||
+        `${audiencePrefix} ${productColour} ${typeLabel} Graphic T-Shirt #${productNumber}`.trim();
+      const slug = generateSlug(`${title}-${productNumber}`);
 
       // Upload images to Cloudinary
       const media: ProductMedia[] = [];
@@ -1369,8 +1380,9 @@ export class ProductImportService {
         }
       }
 
-      const shortDescription = `${audiencePrefix} ${typeLabel.toLowerCase()} fit DTF graphic T-shirt. Comfortable, stylish, and perfect for everyday wear.`.trim();
-      const descriptionHtml = `<p>${shortDescription}</p><ul><li>100% Combed Cotton</li><li>DTF graphic print</li><li>Regular fit</li></ul>`;
+      // Automated rich e-commerce description
+      const shortDescription = `${audiencePrefix} ${productColour} ${typeLabel.toLowerCase()} graphic T-shirt. Premium 240 GSM 100% combed cotton with drop-shoulder streetwear fit.`.trim();
+      const descriptionHtml = `<p>${shortDescription}</p><ul><li><strong>Fabric:</strong> 100% Combed Heavyweight Cotton (240 GSM)</li><li><strong>Fit:</strong> Drop-Shoulder Relaxed ${typeLabel} Fit</li><li><strong>Print:</strong> High-Definition DTF Graphic Print</li><li><strong>Colour:</strong> ${productColour}</li><li><strong>Care:</strong> Machine wash cold inside out, do not iron on print</li></ul>`;
 
       try {
         const productDoc = await ProductModel.findOneAndUpdate(
@@ -1384,9 +1396,9 @@ export class ProductImportService {
               collectionIds: [],
               audience: audienceLabel,
               brand: "THREAD",
-              tags: [typeLabel.toLowerCase(), audienceLabel, "graphic", "t-shirt", "dtf"],
+              tags: [typeLabel.toLowerCase(), audienceLabel, "graphic", "t-shirt", "dtf", productColour.toLowerCase()],
               fit: typeLabel,
-              material: "100% Combed Cotton",
+              material: "100% Combed Cotton (240 GSM)",
               care: DEFAULT_CARE,
               status: "active",
               featured: true,
@@ -1405,23 +1417,35 @@ export class ProductImportService {
         );
         productsCreated++;
 
-        // Create size variants
+        // Determine which sizes to create for this product
+        const sizesToCreate = custom?.sizes?.length
+          ? custom.sizes
+          : ["S", "M", "L", "XL", "2XL"];
+
         const productId = productDoc._id as mongoose.Types.ObjectId;
-        for (const { size, salePricePaise } of SIZE_PRICING) {
-          const discountPct =
-            mrpPaise > 0 ? Math.round(((mrpPaise - salePricePaise) / mrpPaise) * 100) : 0;
+        const skuPrefix = `TH-${audienceLabel.toUpperCase().slice(0, 3)}-${typeLabel.toUpperCase().slice(0, 3)}-${String(productNumber).padStart(2, "0")}`;
+
+        for (const size of sizesToCreate) {
+          const salePricePaise = priceMap[size] || priceLXLPaise;
+          const sku = `${skuPrefix}-${size}`.toUpperCase();
+
           await ProductVariantModel.findOneAndUpdate(
-            { productId, size, colour: "Standard" },
+            { productId, size },
             {
               $set: {
                 productId,
+                sku,
                 size,
-                colour: "Standard",
-                colourHex: "#000000",
+                colour: productColour,
+                colourHex: "#222222",
                 salePricePaise,
                 mrpPaise,
-                discountPercent: discountPct,
                 stockOnHand: stockPerSize,
+                stockReserved: 0,
+                reorderLevel: 5,
+                weightGrams: 280,
+                attributes: {},
+                imagePublicIds: media.length > 0 ? [media[0]!.publicId] : [],
                 status: "active",
               },
               $setOnInsert: { createdAt: new Date() },

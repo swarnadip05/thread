@@ -420,6 +420,16 @@ export function createCatalogueRouter(
       const mrpPaise = Math.round((Number(body.mrp) || 899) * 100);
       const stockPerSize = Math.max(1, Number(body.stockPerSize) || 25);
       const productType = (body.productType || "oversized") as "oversized" | "regular";
+
+      let productCustomizations: Array<{ title?: string; colour?: string; sizes?: string[] }> | undefined;
+      if (body.productCustomizations) {
+        try {
+          productCustomizations = JSON.parse(body.productCustomizations);
+        } catch {
+          productCustomizations = undefined;
+        }
+      }
+
       try {
         const result = await importService.batchUploadFromImages({
           files: files.map((f) => ({
@@ -438,6 +448,7 @@ export function createCatalogueRouter(
           stockPerSize,
           productType,
           actorId: request.auth!.userId,
+          ...(productCustomizations ? { productCustomizations } : {}),
         });
         response.json({ success: true, data: result });
       } catch (err: unknown) {
@@ -510,52 +521,132 @@ export function createCatalogueRouter(
     });
   });
 
-  // ── Quick generate / update S-2XL variants for a product ───────────────────
+  // ── Quick generate / update variants for a product ──────────────────────────
   router.post("/admin/products/:id/quick-variants", catalogueRoles, async (request, response) => {
     const productId = parameter(request, "id");
+    const product = await ProductModel.findById(productId);
+    if (!product) throw new HttpError(404, "NOT_FOUND", "Product not found.");
+
     const body = request.body as Record<string, unknown>;
     const priceSMPaise = Math.round((Number(body.priceSM) || 549) * 100);
     const priceLXLPaise = Math.round((Number(body.priceLXL) || 599) * 100);
     const priceXXLPaise = Math.round((Number(body.priceXXL) || 649) * 100);
     const mrpPaise = Math.round((Number(body.mrp) || 899) * 100);
-    const stockOnHand = Math.max(1, Number(body.stock) || 25);
+    const defaultStock = Math.max(0, Number(body.stock ?? 25));
+    const colour = String(body.colour || "Sage Green").trim();
+    const newTitle = body.title ? String(body.title).trim() : null;
+    const newAudience = body.audience ? String(body.audience).trim() : (product.audience || "men");
+    const newFit = body.fit ? String(body.fit).trim() : (product.fit || "Oversized");
 
-    const sizes = [
-      { size: "S", price: priceSMPaise },
-      { size: "M", price: priceSMPaise },
-      { size: "L", price: priceLXLPaise },
-      { size: "XL", price: priceLXLPaise },
-      { size: "2XL", price: priceXXLPaise },
-    ];
+    // Clean old variants for this product to prevent duplicate key or orphan errors
+    await ProductVariantModel.deleteMany({ productId });
 
-    for (const item of sizes) {
-      const discountPct = mrpPaise > 0 ? Math.round(((mrpPaise - item.price) / mrpPaise) * 100) : 0;
-      await ProductVariantModel.findOneAndUpdate(
-        { productId, size: item.size, colour: "Standard" },
-        {
-          $set: {
-            productId,
-            size: item.size,
-            colour: "Standard",
-            colourHex: "#000000",
-            salePricePaise: item.price,
-            mrpPaise,
-            discountPercent: discountPct,
-            stockOnHand,
-            status: "active",
-          },
-          $setOnInsert: { createdAt: new Date() },
-        },
-        { upsert: true },
-      );
+    const skuBase = `TH-${(product.slug || "PROD").replace(/[^a-zA-Z0-9]/g, "").toUpperCase().slice(0, 16)}`;
+
+    // If explicit variantItems passed: [{ size: "S", salePrice: 549, mrp: 899, stock: 25, isAvailable: true }]
+    if (Array.isArray(body.variantItems) && body.variantItems.length > 0) {
+      for (const item of body.variantItems as Array<{ size: string; salePrice?: number; mrp?: number; stock?: number; isAvailable?: boolean }>) {
+        const size = String(item.size).toUpperCase().trim();
+        const salePricePaise = Math.round((Number(item.salePrice) || 549) * 100);
+        const itemMrpPaise = Math.round((Number(item.mrp) || 899) * 100);
+        const stockOnHand = item.isAvailable === false ? 0 : Math.max(0, Number(item.stock ?? defaultStock));
+        const status = item.isAvailable !== false && stockOnHand > 0 ? "active" : "inactive";
+        const sku = `${skuBase}-${size}`.toUpperCase();
+        await ProductVariantModel.create({
+          productId,
+          sku,
+          size,
+          colour,
+          colourHex: "#222222",
+          salePricePaise,
+          mrpPaise: itemMrpPaise,
+          stockOnHand,
+          stockReserved: 0,
+          reorderLevel: 5,
+          weightGrams: 280,
+          attributes: {},
+          imagePublicIds: product.media?.length ? [product.media[0]!.publicId] : [],
+          status,
+        });
+      }
+    } else {
+      // Available sizes array or default all 5
+      const availableSizes: string[] = Array.isArray(body.sizes) && body.sizes.length
+        ? (body.sizes as string[])
+        : ["S", "M", "L", "XL", "2XL"];
+
+      const priceMap: Record<string, number> = {
+        S: priceSMPaise,
+        M: priceSMPaise,
+        L: priceLXLPaise,
+        XL: priceLXLPaise,
+        "2XL": priceXXLPaise,
+        XXL: priceXXLPaise,
+      };
+
+      for (const size of availableSizes) {
+        const salePricePaise = priceMap[size] || priceLXLPaise;
+        const sku = `${skuBase}-${size}`.toUpperCase();
+
+        await ProductVariantModel.create({
+          productId,
+          sku,
+          size,
+          colour,
+          colourHex: "#222222",
+          salePricePaise,
+          mrpPaise,
+          stockOnHand: defaultStock,
+          stockReserved: 0,
+          reorderLevel: 5,
+          weightGrams: 280,
+          attributes: {},
+          imagePublicIds: product.media?.length ? [product.media[0]!.publicId] : [],
+          status: defaultStock > 0 ? "active" : "inactive",
+        });
+      }
     }
 
-    await ProductModel.updateOne(
-      { _id: productId },
-      { $set: { status: "active" } },
-    );
+    // Auto-generate high-quality SEO & product descriptions with colour & fit
+    const audPrefix = newAudience === "women" ? "Women's" : "Men's";
+    const shortDesc = `${audPrefix} ${colour} ${newFit.toLowerCase()} graphic T-shirt. Premium 240 GSM 100% combed cotton with drop-shoulder streetwear fit.`;
+    const descriptionHtml = `<p>${shortDesc}</p><ul><li><strong>Fabric:</strong> 100% Combed Heavyweight Cotton (240 GSM)</li><li><strong>Fit:</strong> Drop-Shoulder Relaxed ${newFit} Fit</li><li><strong>Print:</strong> High-Definition DTF Graphic Print</li><li><strong>Colour:</strong> ${colour}</li><li><strong>Care:</strong> Machine wash cold inside out, do not iron on print</li></ul>`;
+
+    const updateFields: Record<string, unknown> = {
+      status: "active",
+      shortDescription: shortDesc,
+      descriptionHtml,
+      fit: newFit,
+      audience: newAudience,
+    };
+    if (newTitle) updateFields.title = newTitle;
+    await ProductModel.updateOne({ _id: productId }, { $set: updateFields });
 
     response.json({ success: true, data: { updated: true } });
+  });
+
+  // ── Toggle stock availability for a single variant ──────────────────────────
+  router.patch("/admin/variants/:id/toggle-stock", catalogueRoles, async (request, response) => {
+    const variantId = parameter(request, "id");
+    const variant = await ProductVariantModel.findById(variantId);
+    if (!variant) throw new HttpError(404, "NOT_FOUND", "Variant not found.");
+
+    const inStock = variant.stockOnHand > 0 && variant.status === "active";
+    const newStock = inStock ? 0 : 25;
+    const newStatus = inStock ? "inactive" : "active";
+
+    variant.stockOnHand = newStock;
+    variant.status = newStatus;
+    await variant.save();
+
+    response.json({
+      success: true,
+      data: {
+        id: variant._id.toString(),
+        stockOnHand: newStock,
+        status: newStatus,
+      },
+    });
   });
 
   router.post(
