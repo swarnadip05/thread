@@ -133,18 +133,18 @@ const siteSettingsSchema = new Schema<SiteSettingsRecord>(
     checkout: {
       reservationMinutes: { type: Number, required: true, default: 12, min: 5, max: 60 },
       guestCheckoutEnabled: { type: Boolean, required: true, default: false },
-      codEnabled: { type: Boolean, required: true, default: false },
+      codEnabled: { type: Boolean, required: true, default: true },
       codMinimumOrderPaise: { type: Number, required: true, default: 0, min: 0 },
       codMaximumOrderPaise: { type: Number, default: null, min: 0 },
       codPostalPrefixes: [{ type: String, trim: true, maxlength: 12 }],
-      codConfirmationRequired: { type: Boolean, required: true, default: true },
+      codConfirmationRequired: { type: Boolean, required: true, default: false },
     },
     returns: {
       windowDays: { type: Number, required: true, default: 7, min: 1, max: 90 },
       requireInspectionBeforeRestock: { type: Boolean, required: true, default: true },
     },
     payments: {
-      onlineEnabled: { type: Boolean, required: true, default: false },
+      onlineEnabled: { type: Boolean, required: true, default: true },
     },
     seo: {
       defaultTitle: { type: String, required: true, default: "THREAD", trim: true, maxlength: 120 },

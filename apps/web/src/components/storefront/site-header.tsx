@@ -2,7 +2,7 @@
 
 import { IconButton } from "@thread/ui";
 import type { PublicNavigationDto, PublicSiteSettingsDto } from "@thread/types";
-import { Heart, Home, Menu, Search, UserRound, X } from "lucide-react";
+import { Heart, Home, Menu, Search, ShoppingBag, UserRound, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 
@@ -10,6 +10,7 @@ import { useAuth } from "@/auth/auth-provider";
 import { DesktopMegaNavigation } from "./desktop-mega-navigation";
 import { MobileCategoryNavigation } from "./mobile-category-navigation";
 import { SearchBox } from "../discovery/search-box";
+import { CartDrawer } from "../cart/cart-drawer";
 
 const wishlistKey = "thread:wishlist:v1";
 const legacySupportAnnouncement = "Customer support target: reply within 24 hours, Monday–Friday.";
@@ -29,6 +30,18 @@ function wishlistCount(): number {
   try {
     const value = JSON.parse(localStorage.getItem(wishlistKey) ?? "[]") as unknown;
     return Array.isArray(value) ? value.length : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function cartItemsCount(): number {
+  try {
+    const value = JSON.parse(localStorage.getItem("thread:cart:v1") ?? "[]") as unknown;
+    if (Array.isArray(value)) {
+      return value.reduce((sum: number, item: any) => sum + (Number(item?.quantity) || 1), 0);
+    }
+    return 0;
   } catch {
     return 0;
   }
@@ -65,9 +78,11 @@ export function SiteHeader({
 }) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [cartDrawerOpen, setCartDrawerOpen] = useState(false);
   const auth = useAuth();
   const { refresh, status: authStatus } = auth;
   const wishlistItems = useSyncExternalStore(subscribeToCommerceIndicators, wishlistCount, () => 0);
+  const cartCount = useSyncExternalStore(subscribeToCommerceIndicators, cartItemsCount, () => 0);
   const announcement =
     settings.announcement.text === legacySupportAnnouncement
       ? "Explore the latest THREAD styles."
@@ -76,6 +91,12 @@ export function SiteHeader({
   useEffect(() => {
     if (authStatus === "unknown") void refresh();
   }, [authStatus, refresh]);
+
+  useEffect(() => {
+    const handleOpenCart = () => setCartDrawerOpen(true);
+    window.addEventListener("thread:open-cart", handleOpenCart);
+    return () => window.removeEventListener("thread:open-cart", handleOpenCart);
+  }, []);
 
   return (
     <>
@@ -123,6 +144,15 @@ export function SiteHeader({
                 <Heart aria-hidden="true" className="size-5" />
                 <CountBadge count={wishlistItems} />
               </Link>
+              <button
+                type="button"
+                aria-label={`Shopping bag, ${cartCount} ${cartCount === 1 ? "item" : "items"}`}
+                className="focus-ring relative grid size-11 place-items-center rounded-full hover:bg-ink/7 text-ink transition"
+                onClick={() => setCartDrawerOpen(true)}
+              >
+                <ShoppingBag aria-hidden="true" className="size-5" />
+                <CountBadge count={cartCount} />
+              </button>
             </div>
           </div>
           <div className="shell-container flex h-16 items-center gap-1 lg:hidden">
@@ -157,6 +187,15 @@ export function SiteHeader({
               >
                 <UserRound aria-hidden="true" className="size-5" />
               </Link>
+              <button
+                type="button"
+                aria-label={`Shopping bag, ${cartCount} ${cartCount === 1 ? "item" : "items"}`}
+                className="focus-ring relative grid size-11 place-items-center rounded-full hover:bg-ink/7 text-ink"
+                onClick={() => setCartDrawerOpen(true)}
+              >
+                <ShoppingBag aria-hidden="true" className="size-5" />
+                <CountBadge count={cartCount} />
+              </button>
             </div>
           </div>
           {searchOpen ? (
@@ -176,7 +215,7 @@ export function SiteHeader({
       </div>
       <nav
         aria-label="Quick navigation"
-        className="fixed inset-x-0 bottom-0 z-header grid h-16 grid-cols-4 border-t border-ink/10 bg-paper pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_24px_rgb(17_17_17/0.08)] lg:hidden"
+        className="fixed inset-x-0 bottom-0 z-header grid h-16 grid-cols-5 border-t border-ink/10 bg-paper pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_24px_rgb(17_17_17/0.08)] lg:hidden"
       >
         <QuickLink href="/" icon={<Home aria-hidden="true" />} label="Home" />
         <QuickButton
@@ -195,7 +234,16 @@ export function SiteHeader({
           icon={<Heart aria-hidden="true" />}
           label="Wishlist"
         />
+        <QuickButton
+          count={cartCount}
+          icon={<ShoppingBag aria-hidden="true" />}
+          label="Bag"
+          onClick={() => setCartDrawerOpen(true)}
+        />
       </nav>
+
+      {/* Slide-out Cart Drawer */}
+      <CartDrawer open={cartDrawerOpen} onClose={() => setCartDrawerOpen(false)} />
     </>
   );
 }
@@ -227,11 +275,13 @@ function QuickLink({
 }
 
 function QuickButton({
+  count = 0,
   disabled,
   icon,
   label,
   onClick,
 }: {
+  count?: number;
   disabled?: boolean;
   icon: ReactNode;
   label: string;
@@ -239,13 +289,16 @@ function QuickButton({
 }) {
   return (
     <button
-      aria-label={disabled ? `${label} — coming soon` : label}
-      className="focus-ring grid min-w-0 place-items-center content-center gap-0.5 rounded-sm text-[0.65rem] font-medium disabled:opacity-40 [&_svg]:size-5"
+      aria-label={disabled ? `${label} — coming soon` : `${label}${count ? `, ${count} items` : ""}`}
+      className="focus-ring relative grid min-w-0 place-items-center content-center gap-0.5 rounded-sm text-[0.65rem] font-medium disabled:opacity-40 [&_svg]:size-5"
       disabled={disabled}
       onClick={onClick}
       type="button"
     >
-      {icon}
+      <span className="relative">
+        {icon}
+        <CountBadge count={count} />
+      </span>
       <span>{label}</span>
     </button>
   );

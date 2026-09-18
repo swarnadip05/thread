@@ -9,7 +9,7 @@ import type {
   OrderDto,
 } from "@thread/types";
 import { Button, EmptyState, ErrorState, Input, Price, Skeleton } from "@thread/ui";
-import { CheckCircle2, Clock3, MapPin, PackageCheck, ShieldCheck, Truck } from "lucide-react";
+import { Banknote, Check, CheckCircle2, Clock3, CreditCard, MapPin, MessageCircle, PackageCheck, ShieldCheck, Truck } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import { apiRequest } from "@/auth/auth-client";
@@ -270,12 +270,14 @@ export function CheckoutPage({ gstin }: { gstin: string }) {
               </Button>
               {session.paymentMethod === "cod" ? (
                 <Button
-                  className="ml-2 mt-4"
+                  className="ml-2 mt-4 font-semibold"
                   disabled={busy}
                   onClick={() => void confirmCod()}
                   size="sm"
+                  variant="gold"
                 >
-                  {busy ? "Confirming…" : "Confirm COD order"}
+                  <Check aria-hidden="true" className="size-4 mr-1.5" />
+                  {busy ? "Confirming…" : "Confirm & Place COD Order"}
                 </Button>
               ) : null}
             </section>
@@ -392,54 +394,111 @@ export function CheckoutPage({ gstin }: { gstin: string }) {
               />
             </label>
             <fieldset className="mt-6 grid gap-3">
-              <legend className="text-sm font-semibold">Payment method</legend>
-              <label className="flex gap-3 rounded-md border border-ink/15 p-4">
+              <legend className="text-sm font-semibold">Choose payment method</legend>
+
+              {/* Online Payment Option */}
+              <label
+                className={`flex cursor-pointer gap-3.5 rounded-lg border p-4 transition-colors ${
+                  paymentMethod === "payment_placeholder"
+                    ? "border-ink bg-ivory shadow-xs"
+                    : "border-ink/15 hover:border-ink/30"
+                }`}
+              >
                 <input
                   checked={paymentMethod === "payment_placeholder"}
                   disabled={Boolean(session)}
                   name="payment"
                   onChange={() => setPaymentMethod("payment_placeholder")}
                   type="radio"
+                  className="mt-1 size-4 accent-ink"
                 />
-                <span>
-                  <span className="block text-sm font-semibold">Online payment</span>
-                  <span className="mt-1 block text-xs text-muted">
-                    Razorpay Standard Checkout using methods enabled on the merchant account.
-                  </span>
-                </span>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-2 font-semibold text-sm">
+                      <CreditCard aria-hidden="true" className="size-4 text-ink" />
+                      Online Payment (Instant UPI / Cards / NetBanking)
+                    </span>
+                    <span className="rounded bg-success/15 px-2 py-0.5 text-[0.68rem] font-bold uppercase tracking-wider text-success">
+                      Recommended
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs text-muted">
+                    Instant order confirmation via Google Pay, PhonePe, Paytm, BHIM UPI, Cards or NetBanking.
+                  </p>
+                  <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-[0.7rem] font-medium text-charcoal/80">
+                    <span className="rounded border border-ink/10 bg-paper px-2 py-0.5 font-bold text-success">UPI</span>
+                    <span className="rounded border border-ink/10 bg-paper px-2 py-0.5">Google Pay</span>
+                    <span className="rounded border border-ink/10 bg-paper px-2 py-0.5">PhonePe</span>
+                    <span className="rounded border border-ink/10 bg-paper px-2 py-0.5">Paytm</span>
+                    <span className="rounded border border-ink/10 bg-paper px-2 py-0.5">RuPay / Visa / Mastercard</span>
+                  </div>
+                </div>
               </label>
+
+              {/* Cash on Delivery Option */}
               {bootstrap!.codEnabled ? (
                 <>
-                  <label className="flex gap-3 rounded-md border border-ink/15 p-4">
+                  <label
+                    className={`flex cursor-pointer gap-3.5 rounded-lg border p-4 transition-colors ${
+                      paymentMethod === "cod"
+                        ? "border-ink bg-ivory shadow-xs"
+                        : "border-ink/15 hover:border-ink/30"
+                    }`}
+                  >
                     <input
                       checked={paymentMethod === "cod"}
                       disabled={Boolean(session)}
                       name="payment"
                       onChange={() => setPaymentMethod("cod")}
                       type="radio"
+                      className="mt-1 size-4 accent-ink"
                     />
-                    <span>
-                      <span className="block text-sm font-semibold">Cash on delivery</span>
-                      <span className="mt-1 block text-xs text-muted">
-                        Availability is checked against configured address and order-value rules.
-                      </span>
-                    </span>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between">
+                        <span className="flex items-center gap-2 font-semibold text-sm">
+                          <Banknote aria-hidden="true" className="size-4 text-ink" />
+                          Cash on Delivery (COD)
+                        </span>
+                        <span className="rounded bg-ink/5 px-2 py-0.5 text-[0.68rem] font-medium text-muted">
+                          Pay at Doorstep
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xs text-muted">
+                        Pay via cash or delivery agent's UPI QR code when package arrives.
+                      </p>
+                    </div>
                   </label>
                   {paymentMethod === "cod" && bootstrap!.codConfirmationRequired ? (
-                    <label className="flex items-start gap-3 rounded-md bg-ivory p-4 text-sm">
+                    <label className="flex items-start gap-3 rounded-md border border-gold/40 bg-gold/5 p-4 text-sm">
                       <input
                         checked={codConfirmationAccepted}
-                        className="mt-0.5 size-5 accent-gold"
+                        className="mt-0.5 size-4 accent-gold"
                         disabled={Boolean(session)}
                         onChange={(event) => setCodConfirmationAccepted(event.target.checked)}
                         type="checkbox"
                       />
-                      I confirm that I will pay the server-confirmed total on delivery.
+                      <span>I confirm that I will pay the total on delivery.</span>
                     </label>
                   ) : null}
                 </>
               ) : null}
             </fieldset>
+
+            {/* WhatsApp Assistance Banner */}
+            <div className="mt-5 flex items-center justify-between rounded-lg border border-success/30 bg-success/5 p-3.5 text-xs text-charcoal">
+              <div className="flex items-center gap-2">
+                <MessageCircle aria-hidden="true" className="size-4 text-success shrink-0" />
+                <span>Need help with payment or ordering? Chat directly with us.</span>
+              </div>
+              <a
+                href={`https://wa.me/?text=${encodeURIComponent("Hi, I need assistance with my order on THREAD.")}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-bold text-success underline hover:text-success/80 shrink-0 ml-2"
+              >
+                Chat Help
+              </a>
+            </div>
           </section>
 
           {!session ? (
@@ -470,17 +529,18 @@ export function CheckoutPage({ gstin }: { gstin: string }) {
           ) : null}
           {!session ? (
             <Button
-              className="w-full"
+              className="w-full gap-2 font-semibold shadow-sm"
               disabled={busy || bootstrap!.shippingMethods.length === 0}
               onClick={() => void createCheckout()}
               size="lg"
+              variant="gold"
             >
               <ShieldCheck aria-hidden="true" className="size-5" />
               {busy
-                ? "Checking cart and reserving stock…"
+                ? "Processing your order…"
                 : paymentMethod === "cod"
-                  ? "Reserve and review COD total"
-                  : "Reserve stock and continue"}
+                  ? "Place Cash on Delivery Order"
+                  : "Proceed to Online Payment"}
             </Button>
           ) : null}
         </div>
@@ -500,8 +560,10 @@ export function CheckoutPage({ gstin }: { gstin: string }) {
           <Button
             disabled={busy || bootstrap!.shippingMethods.length === 0}
             onClick={() => void createCheckout()}
+            variant="gold"
+            className="font-semibold"
           >
-            {paymentMethod === "cod" ? "Review total" : "Continue"}
+            {busy ? "Processing…" : paymentMethod === "cod" ? "Place COD Order" : "Proceed to Pay"}
           </Button>
         </div>
       ) : null}

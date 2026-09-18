@@ -27,8 +27,12 @@ export function ProtectedRoute({
 
   const destination = useMemo(() => {
     if (status === "unknown") return null;
-    if (status === "anonymous" || !user)
-      return pathname.startsWith("/admin") ? "/admin/login" : "/auth/login";
+    if (status === "anonymous" || !user) {
+      if (pathname.startsWith("/admin")) return "/admin/login";
+      return pathname && pathname !== "/"
+        ? `/auth/login?returnTo=${encodeURIComponent(pathname)}`
+        : "/auth/login";
+    }
     if (user.mustChangePassword && pathname !== "/account/change-password")
       return "/account/change-password";
     if (allowedRoleKey) {

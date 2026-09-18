@@ -4,7 +4,11 @@ export interface StoredCartLine {
   readonly title: string;
   readonly variantId: string;
   readonly quantity: number;
-  readonly observedUnitPricePaise?: number;
+  readonly observedUnitPricePaise?: number | undefined;
+  readonly size?: string | undefined;
+  readonly colour?: string | undefined;
+  readonly imageUrl?: string | undefined;
+  readonly mrpPaise?: number | undefined;
 }
 
 const CART_KEY = "thread:cart:v1";
@@ -24,6 +28,34 @@ export function writeCart(lines: readonly StoredCartLine[]): void {
   localStorage.setItem(CART_KEY, JSON.stringify(lines));
   localStorage.removeItem(CHECKOUT_KEY);
   window.dispatchEvent(new Event("thread:cart-changed"));
+}
+
+export function updateCartQuantity(variantId: string, quantity: number): void {
+  const current = readCart();
+  if (quantity <= 0) {
+    writeCart(current.filter((line) => line.variantId !== variantId));
+  } else {
+    writeCart(
+      current.map((line) =>
+        line.variantId === variantId ? { ...line, quantity: Math.min(10, quantity) } : line,
+      ),
+    );
+  }
+}
+
+export function removeFromCart(variantId: string): void {
+  const current = readCart();
+  writeCart(current.filter((line) => line.variantId !== variantId));
+}
+
+export function getCartTotalPaise(lines?: readonly StoredCartLine[]): number {
+  const list = lines ?? readCart();
+  return list.reduce((total, item) => total + (item.observedUnitPricePaise ?? 0) * item.quantity, 0);
+}
+
+export function getCartCount(lines?: readonly StoredCartLine[]): number {
+  const list = lines ?? readCart();
+  return list.reduce((total, item) => total + item.quantity, 0);
 }
 
 export function clearCart(): void {

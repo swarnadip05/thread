@@ -6,7 +6,7 @@ import type { AuthSessionDto } from "@thread/types";
 import { registerSchema, type RegisterInput } from "@thread/validation";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { authRequest, ApiClientError } from "@/auth/auth-client";
 import { useAuth } from "@/auth/auth-provider";
@@ -16,8 +16,17 @@ import { PasswordStrength } from "./password-strength";
 export function RegisterForm() {
   const [accepted, setAccepted] = useState(false);
   const [serverError, setServerError] = useState("");
+  const [returnTo, setReturnTo] = useState<string | null>(null);
   const auth = useAuth();
   const router = useRouter();
+
+  useEffect(() => {
+    const param = new URLSearchParams(window.location.search).get("returnTo");
+    if (param && param.startsWith("/") && !param.startsWith("//")) {
+      setReturnTo(param);
+    }
+  }, []);
+
   const {
     formState: { errors, isSubmitting },
     handleSubmit,
@@ -37,7 +46,7 @@ export function RegisterForm() {
         body: JSON.stringify(values),
       });
       auth.establish(session);
-      router.push("/account");
+      router.push(returnTo ?? "/account");
     } catch (error) {
       setServerError(
         error instanceof ApiClientError
@@ -108,7 +117,10 @@ export function RegisterForm() {
       </form>
       <p className="mt-7 text-center text-sm text-muted">
         Already have an account?{" "}
-        <Link className="font-semibold text-ink underline underline-offset-4" href="/auth/login">
+        <Link
+          className="font-semibold text-ink underline underline-offset-4"
+          href={returnTo ? `/auth/login?returnTo=${encodeURIComponent(returnTo)}` : "/auth/login"}
+        >
           Sign in
         </Link>
       </p>

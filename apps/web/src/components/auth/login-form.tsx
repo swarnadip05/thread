@@ -5,7 +5,7 @@ import { Button, FieldLabel, Input } from "@thread/ui";
 import type { AuthSessionDto } from "@thread/types";
 import { loginSchema, type LoginInput } from "@thread/validation";
 import Link from "next/link";
-import { useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { useForm } from "react-hook-form";
 import { authRequest, API_URL } from "@/auth/auth-client";
 import { useAuth } from "@/auth/auth-provider";
@@ -32,7 +32,15 @@ export function LoginForm({
   );
   const [mode, setMode] = useState<"email" | "phone">("email");
   const [serverError, setServerError] = useState("");
+  const [returnTo, setReturnTo] = useState<string | null>(null);
   const auth = useAuth();
+
+  useEffect(() => {
+    const param = new URLSearchParams(window.location.search).get("returnTo");
+    if (param && param.startsWith("/") && !param.startsWith("//")) {
+      setReturnTo(param);
+    }
+  }, []);
   const {
     formState: { errors, isSubmitting },
     handleSubmit,
@@ -62,15 +70,17 @@ export function LoginForm({
       const roles = session.user.roles;
       const destination = session.user.mustChangePassword
         ? "/account/change-password"
-        : roles.includes("super_admin") ||
-            roles.includes("admin") ||
-            roles.includes("order_manager")
-          ? "/admin"
-          : roles.includes("catalog_manager")
-            ? "/admin/products"
-            : roles.includes("support_agent")
-              ? "/admin/orders"
-              : "/account";
+        : returnTo
+          ? returnTo
+          : roles.includes("super_admin") ||
+              roles.includes("admin") ||
+              roles.includes("order_manager")
+            ? "/admin"
+            : roles.includes("catalog_manager")
+              ? "/admin/products"
+              : roles.includes("support_agent")
+                ? "/admin/orders"
+                : "/account";
       window.location.assign(destination);
     } catch (error) {
       setServerError(
@@ -118,7 +128,7 @@ export function LoginForm({
         <PhoneLoginForm
           onAuthenticated={(session) => {
             auth.establish(session);
-            window.location.assign("/account");
+            window.location.assign(returnTo ?? "/account");
           }}
         />
       ) : (
@@ -184,7 +194,7 @@ export function LoginForm({
           New to THREAD?{" "}
           <Link
             className="font-semibold text-ink underline underline-offset-4"
-            href="/auth/register"
+            href={returnTo ? `/auth/register?returnTo=${encodeURIComponent(returnTo)}` : "/auth/register"}
           >
             Create an account
           </Link>

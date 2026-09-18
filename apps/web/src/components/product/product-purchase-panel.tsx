@@ -7,8 +7,9 @@ import type {
   ProductVariantDto,
 } from "@thread/types";
 import { Button, Drawer, Input, Price, useToast } from "@thread/ui";
-import { Heart, MessageCircle, Minus, Plus, Ruler, Truck } from "lucide-react";
+import { ArrowRight, Heart, MessageCircle, Minus, Plus, Ruler, ShoppingBag, Truck, Zap } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { readCart, writeCart, type StoredCartLine } from "@/checkout/cart-storage";
 import { useAnalytics } from "@/analytics/analytics-provider";
@@ -115,18 +116,29 @@ export function ProductPurchasePanel({
     return () => window.removeEventListener("thread:size-selected", handleCustomSize);
   }, [availableForColour]);
 
+  const router = useRouter();
   const selectedVariant = availableForColour.find((item) => item.size === size);
-  const addToCart = () => {
+  const addToCart = (openDrawer = true): boolean => {
     if (!selectedVariant || selectedVariant.availableStock < 1) {
       setSelectionError("Select an available size before adding this item.");
-      return;
+      return false;
     }
     const lines = readCart();
     const existing = lines.find((line) => line.variantId === selectedVariant.id);
     const nextQuantity = Math.min(quantityLimit, (existing?.quantity ?? 0) + quantity);
+    const imageUrl = product.media?.[0]?.secureUrl || undefined;
     const next: StoredCartLine[] = existing
       ? lines.map((line) =>
-          line.variantId === selectedVariant.id ? { ...line, quantity: nextQuantity } : line,
+          line.variantId === selectedVariant.id
+            ? {
+                ...line,
+                quantity: nextQuantity,
+                size: selectedVariant.size,
+                colour: selectedVariant.colour,
+                imageUrl: imageUrl || line.imageUrl || undefined,
+                mrpPaise: selectedVariant.mrpPaise,
+              }
+            : line,
         )
       : [
           ...lines,
@@ -137,6 +149,10 @@ export function ProductPurchasePanel({
             variantId: selectedVariant.id,
             quantity,
             observedUnitPricePaise: selectedVariant.salePricePaise,
+            mrpPaise: selectedVariant.mrpPaise,
+            size: selectedVariant.size,
+            colour: selectedVariant.colour,
+            imageUrl,
           },
         ];
     writeCart(next);
@@ -147,10 +163,22 @@ export function ProductPurchasePanel({
       value_paise: selectedVariant.salePricePaise * quantity,
     });
     toast({
-      title: "Added to cart",
+      title: "Added to Bag",
       description: `${quantity} × ${selectedVariant.colour}, ${selectedVariant.size}`,
       variant: "success",
     });
+
+    if (openDrawer) {
+      window.dispatchEvent(new Event("thread:open-cart"));
+    }
+    return true;
+  };
+
+  const buyNow = () => {
+    const added = addToCart(false);
+    if (added) {
+      router.push("/checkout");
+    }
   };
 
   const buyOnWhatsApp = () => {
@@ -353,33 +381,71 @@ export function ProductPurchasePanel({
         <span className="text-xs text-muted">Maximum {quantityLimit}</span>
       </div>
 
-      <div className="mt-6 grid grid-cols-[1fr_auto] gap-2 sm:grid-cols-[1fr_1fr_auto]">
-        <Button disabled={variant.availableStock < 1} onClick={buyOnWhatsApp} variant="gold">
-          <MessageCircle aria-hidden="true" className="size-4" /> Buy on WhatsApp
-        </Button>
-        <Button
-          className="hidden sm:inline-flex"
-          disabled={variant.availableStock < 1}
-          onClick={addToCart}
-          variant="outline"
-        >
-          Add to cart
-        </Button>
-        <Button
-          aria-label={wishlisted ? "Remove from wishlist" : "Add to wishlist"}
-          onClick={toggleWishlist}
-          variant="outline"
-        >
-          <Heart aria-hidden="true" className={wishlisted ? "fill-error text-error" : ""} />
-        </Button>
+      <div className="mt-6 flex flex-col gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-2.5">
+          <Button
+            size="lg"
+            className="w-full gap-2 font-semibold shadow-sm"
+            disabled={variant.availableStock < 1}
+            onClick={() => addToCart(true)}
+            variant="gold"
+          >
+            <ShoppingBag aria-hidden="true" className="size-5" /> Add to Bag
+          </Button>
+
+          <Button
+            size="lg"
+            className="w-full gap-2 font-semibold bg-ink text-paper hover:bg-ink/90 shadow-sm"
+            disabled={variant.availableStock < 1}
+            onClick={buyNow}
+            type="button"
+          >
+            <Zap aria-hidden="true" className="size-5 text-gold" /> Buy Now
+          </Button>
+
+          <Button
+            size="lg"
+            aria-label={wishlisted ? "Remove from wishlist" : "Add to wishlist"}
+            onClick={toggleWishlist}
+            variant="outline"
+            className="px-3.5"
+            type="button"
+          >
+            <Heart aria-hidden="true" className={`size-5 ${wishlisted ? "fill-error text-error" : ""}`} />
+          </Button>
+        </div>
+
+        {/* WhatsApp Secondary Ordering / Support option */}
+        <div className="flex items-center justify-between rounded-lg border border-success/30 bg-success/5 px-3.5 py-2.5 text-xs text-charcoal">
+          <div className="flex items-center gap-2">
+            <MessageCircle aria-hidden="true" className="size-4 text-success shrink-0" />
+            <span>Have questions or prefer ordering via WhatsApp?</span>
+          </div>
+          <button
+            type="button"
+            onClick={buyOnWhatsApp}
+            className="font-bold text-success underline hover:text-success/80 shrink-0 ml-2"
+          >
+            Chat with us
+          </button>
+        </div>
       </div>
       <DeliveryChecker />
       <div className="fixed inset-x-0 bottom-16 z-header grid grid-cols-2 gap-2 border-t bg-paper p-3 shadow-raised sm:hidden">
-        <Button disabled={variant.availableStock < 1} onClick={buyOnWhatsApp} variant="gold">
-          <MessageCircle aria-hidden="true" className="size-4" /> WhatsApp
+        <Button
+          disabled={variant.availableStock < 1}
+          onClick={() => addToCart(true)}
+          variant="gold"
+          className="gap-1.5 font-semibold"
+        >
+          <ShoppingBag aria-hidden="true" className="size-4" /> Add to Bag
         </Button>
-        <Button disabled={variant.availableStock < 1} onClick={addToCart} variant="outline">
-          Add to cart
+        <Button
+          disabled={variant.availableStock < 1}
+          onClick={buyNow}
+          className="gap-1.5 font-semibold bg-ink text-paper hover:bg-ink/90"
+        >
+          <Zap aria-hidden="true" className="size-4 text-gold" /> Buy Now
         </Button>
       </div>
     </div>

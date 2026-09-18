@@ -50,12 +50,21 @@ import {
 const defaultCheckoutSettings: CheckoutSettingsInput = {
   reservationMinutes: 12,
   guestCheckoutEnabled: false,
-  codEnabled: false,
+  codEnabled: true,
   codMinimumOrderPaise: 0,
   codMaximumOrderPaise: null,
   codPostalPrefixes: [],
-  codConfirmationRequired: true,
+  codConfirmationRequired: false,
 };
+
+function resolveCheckoutSettings(recordCheckout?: CheckoutSettingsInput | null): CheckoutSettingsInput {
+  return {
+    ...defaultCheckoutSettings,
+    ...(recordCheckout ?? {}),
+    codEnabled: recordCheckout?.codEnabled ?? true,
+    codConfirmationRequired: recordCheckout?.codConfirmationRequired ?? false,
+  };
+}
 
 type WithId<T> = T & { _id: Types.ObjectId };
 
@@ -255,7 +264,7 @@ export class MongooseCheckoutRepository implements CheckoutRepository {
       ShippingMethodModel.find({ active: true }).sort({ sortOrder: 1, name: 1 }).lean(),
       SiteSettingsModel.findOne({ key: "default" }).select({ checkout: 1 }).lean(),
     ]);
-    const settings = settingsRecord?.checkout ?? defaultCheckoutSettings;
+    const settings = resolveCheckoutSettings(settingsRecord?.checkout);
     return {
       addresses: addresses.map(addressDto),
       shippingMethods: shippingMethods.map(shippingDto),
@@ -275,7 +284,7 @@ export class MongooseCheckoutRepository implements CheckoutRepository {
     return {
       shippingMethods: shippingMethods.map(shippingDto),
       coupons: coupons.map(couponDto),
-      settings: settingsRecord?.checkout ?? defaultCheckoutSettings,
+      settings: resolveCheckoutSettings(settingsRecord?.checkout),
     };
   }
 
@@ -384,7 +393,7 @@ export class MongooseCheckoutRepository implements CheckoutRepository {
             "SHIPPING_METHOD_UNAVAILABLE",
             "Shipping method is unavailable for this address.",
           );
-        const settings = settingsRecord?.checkout ?? defaultCheckoutSettings;
+        const settings = resolveCheckoutSettings(settingsRecord?.checkout);
         const expiresAt = new Date(Date.now() + settings.reservationMinutes * 60_000);
         const variantIds = input.checkout.lines.map((line) => new Types.ObjectId(line.variantId));
         const variants = await ProductVariantModel.find({

@@ -98,7 +98,7 @@ export function PaymentAction({
           </p>
         </div>
       </div>
-      <Button className="mt-5 w-full" disabled={busy} onClick={() => void pay()} size="lg">
+      <Button className="mt-5 w-full font-semibold" disabled={busy} onClick={() => void pay()} size="lg" variant="gold">
         {busy ? (
           <LoaderCircle
             aria-hidden="true"
@@ -107,7 +107,9 @@ export function PaymentAction({
         ) : (
           <CreditCard aria-hidden="true" className="size-5" />
         )}
-        {busy ? "Preparing secure payment…" : "Pay server-confirmed total"}
+        {busy
+          ? "Preparing secure payment…"
+          : `Pay Now • ₹${(session.totals.totalPaise / 100).toLocaleString("en-IN")}`}
       </Button>
       {message ? (
         <p aria-live="polite" className="mt-3 text-sm text-muted">
