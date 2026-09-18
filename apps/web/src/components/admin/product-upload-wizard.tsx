@@ -28,18 +28,78 @@ interface UploadResult {
 }
 
 const POPULAR_COLOURS = [
+  // Whites & Creams
+  "Pure White",
+  "Off-White / Cream",
+  "Ivory",
+  // Blacks & Greys
+  "Jet Black",
+  "Vintage Black",
+  "Charcoal Grey",
+  "Light Grey / Ash",
+  "Slate Grey",
+  // Reds & Pinks
+  "Red",
+  "Bright Red",
+  "Cherry Red",
+  "Crimson",
+  "Coral",
+  "Blush Pink",
+  "Hot Pink",
+  "Baby Pink",
+  "Rose Gold",
+  // Oranges & Yellows
+  "Orange",
+  "Rust Orange",
+  "Burnt Orange",
+  "Peach",
+  "Yellow",
+  "Mustard Yellow",
+  "Lemon Yellow",
+  "Golden Yellow",
+  // Greens
+  "Green",
+  "Bottle Green",
   "Sage Green",
   "Olive Green",
-  "Vintage Black",
-  "Off-White / Cream",
-  "Charcoal Grey",
-  "Beige / Sand",
-  "Mocha Brown",
-  "Maroon",
-  "Cobalt Blue",
-  "Lavender Purple",
-  "Pure White",
+  "Mint Green",
+  "Forest Green",
+  "Lime Green",
+  "Army Green",
+  // Blues
+  "Blue",
   "Navy Blue",
+  "Royal Blue",
+  "Cobalt Blue",
+  "Sky Blue",
+  "Baby Blue",
+  "Teal Blue",
+  "Teal",
+  "Cyan",
+  "Denim Blue",
+  "Midnight Blue",
+  // Purples & Violets
+  "Purple",
+  "Lavender Purple",
+  "Violet",
+  "Indigo",
+  "Plum",
+  "Lilac",
+  "Mauve",
+  // Browns & Neutrals
+  "Mocha Brown",
+  "Brown",
+  "Chocolate Brown",
+  "Caramel",
+  "Tan",
+  "Beige / Sand",
+  "Khaki",
+  // Special
+  "Maroon",
+  "Burgundy",
+  "Multicolour",
+  "Tie-Dye",
+  "Printed",
 ];
 
 const ALL_SIZES = ["S", "M", "L", "XL", "2XL"] as const;
@@ -81,7 +141,7 @@ export function ProductUploadWizard() {
   const [category, setCategory] = useState<"oversized-t-shirts" | "classic-fit-t-shirts">("oversized-t-shirts");
   const [productType, setProductType] = useState<"oversized" | "regular">("oversized");
   const [imagesPerProduct, setImagesPerProduct] = useState<number>(5);
-  const [defaultColour, setDefaultColour] = useState<string>("Sage Green");
+  const [defaultColour, setDefaultColour] = useState<string>("Pure White");
 
   // Global Size Selection
   const [globalSizes, setGlobalSizes] = useState<string[]>(["S", "M", "L", "XL", "2XL"]);
