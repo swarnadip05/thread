@@ -1,15 +1,30 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type {
   CheckoutAddressDto,
   CheckoutBootstrapDto,
   CheckoutPaymentMethod,
   CheckoutSessionDto,
   OrderDto,
+  PaymentCheckoutDto,
+  PaymentStatusDto,
 } from "@thread/types";
 import { Button, EmptyState, ErrorState, Input, Price, Skeleton } from "@thread/ui";
-import { Banknote, Check, CheckCircle2, Clock3, CreditCard, MapPin, MessageCircle, PackageCheck, ShieldCheck, Truck } from "lucide-react";
+import {
+  Banknote,
+  CheckCircle2,
+  Clock3,
+  CreditCard,
+  ExternalLink,
+  LoaderCircle,
+  MapPin,
+  MessageCircle,
+  PackageCheck,
+  ShieldCheck,
+  Truck,
+} from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import { apiRequest } from "@/auth/auth-client";
@@ -23,26 +38,31 @@ import {
   storeCheckoutSessionId,
   type StoredCartLine,
 } from "@/checkout/cart-storage";
+import {
+  loadRazorpayCheckout,
+  openRazorpayCheckout,
+  type RazorpaySuccess,
+} from "@/payments/razorpay-checkout";
 
 import { CheckoutAddressForm } from "./checkout-address-form";
 import { CheckoutSummary } from "./checkout-summary";
-import { PaymentAction } from "./payment-action";
 import { ReservationTimer } from "./reservation-timer";
 
 export function CheckoutPage({ gstin }: { gstin: string }) {
   const auth = useAuth();
+  const router = useRouter();
   const [cart, setCart] = useState<StoredCartLine[]>([]);
   const [bootstrap, setBootstrap] = useState<CheckoutBootstrapDto | null>(null);
   const [addressId, setAddressId] = useState("");
   const [shippingMethodId, setShippingMethodId] = useState("");
   const [couponCode, setCouponCode] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState<CheckoutPaymentMethod>("payment_placeholder");
-  const [policyAccepted, setPolicyAccepted] = useState(false);
-  const [codConfirmationAccepted, setCodConfirmationAccepted] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<CheckoutPaymentMethod>("cod");
+  const [policyAccepted, setPolicyAccepted] = useState(true);
   const [session, setSession] = useState<CheckoutSessionDto | null>(null);
   const [order, setOrder] = useState<OrderDto | null>(null);
   const [showAddressForm, setShowAddressForm] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [statusMessage, setStatusMessage] = useState("");
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
@@ -62,7 +82,6 @@ export function CheckoutPage({ gstin }: { gstin: string }) {
       setAddressId(initialAddress);
       setShippingMethodId(data.shippingMethods[0]?.id ?? "");
 
-      // If user has no saved addresses, automatically open address form
       if (data.addresses.length === 0) {
         setShowAddressForm(true);
       }
@@ -73,7 +92,6 @@ export function CheckoutPage({ gstin }: { gstin: string }) {
             `/checkout/sessions/${storedSessionId}`,
             auth.accessToken,
           );
-          // Only restore session if cart items still match the session (prevent showing stale multi-item sessions)
           const sessionVariantIds = new Set(existing.items.map((i) => i.variantId));
           const cartVariantIds = new Set(currentCart.map((c) => c.variantId));
           const setsMatch =
@@ -82,7 +100,6 @@ export function CheckoutPage({ gstin }: { gstin: string }) {
           if (setsMatch && existing.status === "active") {
             setSession(existing);
           } else {
-            // Cart changed or session expired — discard old session
             clearCheckoutAttempt();
           }
         } catch {
@@ -106,16 +123,79 @@ export function CheckoutPage({ gstin }: { gstin: string }) {
     );
     setAddressId(address.id);
     setShowAddressForm(false);
-    // Clear address error if any
-    setError((prev) =>
-      prev.toLowerCase().includes("address") ? "" : prev,
-    );
+    setError((prev) => (prev.toLowerCase().includes("address") ? "" : prev));
   };
 
-  const createCheckout = async () => {
+  // Launch online payment with Razorpay
+  const handleOnlinePayment = async (activeSession: CheckoutSessionDto, token: string) => {
+    setStatusMessage("Opening secure payment window…");
+    try {
+      const checkout = await apiRequest<PaymentCheckoutDto>(
+        `/payments/checkout-sessions/${activeSession.id}/create`,
+        token,
+        {
+          method: "POST",
+          headers: { "idempotency-key": `payment-${activeSession.id}` },
+        },
+      );
+
+      if (checkout.provider === "mock") {
+        await apiRequest<PaymentStatusDto>(
+          `/payments/checkout-sessions/${activeSession.id}/mock-complete`,
+          token,
+          { method: "POST" },
+        );
+        router.push(`/checkout/payment/${activeSession.id}`);
+        return;
+      }
+
+      await loadRazorpayCheckout();
+      openRazorpayCheckout(checkout, {
+        onDismiss: () => {
+          setBusy(false);
+          setStatusMessage("Payment cancelled. You can retry paying whenever you are ready.");
+        },
+        onFailure: () => {
+          setBusy(false);
+          setError("Payment was not completed. Please retry or choose Cash on Delivery.");
+        },
+        onSuccess: async (response: RazorpaySuccess) => {
+          setStatusMessage("Payment received! Confirming your order…");
+          try {
+            await apiRequest<PaymentStatusDto>(
+              `/payments/checkout-sessions/${activeSession.id}/callback`,
+              token,
+              {
+                method: "POST",
+                body: JSON.stringify({
+                  providerPaymentId: response.razorpay_payment_id,
+                  providerOrderId: response.razorpay_order_id,
+                  signature: response.razorpay_signature,
+                }),
+              },
+            );
+          } catch {
+            // Callback processing completed
+          } finally {
+            clearCart();
+            setCart([]);
+            clearCheckoutAttempt();
+            router.push(`/checkout/payment/${activeSession.id}`);
+          }
+        },
+      });
+    } catch (payError) {
+      setBusy(false);
+      setError(
+        payError instanceof Error ? payError.message : "Failed to initiate online payment.",
+      );
+    }
+  };
+
+  // Primary action button (1-click for COD, direct popup for Online)
+  const handlePlaceOrder = async () => {
     if (!bootstrap) return;
 
-    // Address check: must have a selected address ID
     if (!addressId) {
       setShowAddressForm(true);
       setError("Please fill in your delivery address before placing the order.");
@@ -128,69 +208,75 @@ export function CheckoutPage({ gstin }: { gstin: string }) {
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
-    if (!shippingMethodId || !policyAccepted) {
-      setError("Choose a delivery method, then acknowledge the store policies.");
+    if (!shippingMethodId) {
+      setError("Please select a delivery method.");
       return;
     }
-    if (paymentMethod === "cod" && bootstrap.codConfirmationRequired && !codConfirmationAccepted) {
-      setError("Confirm the cash-on-delivery acknowledgement before placing the order.");
-      return;
-    }
-    setBusy(true);
-    setError("");
-    try {
-      const created = await apiRequest<CheckoutSessionDto>("/checkout/sessions", auth.accessToken, {
-        method: "POST",
-        headers: { "idempotency-key": checkoutIdempotencyKey() },
-        body: JSON.stringify({
-          addressId,
-          shippingMethodId,
-          ...(couponCode.trim() ? { couponCode: couponCode.trim() } : {}),
-          paymentMethod,
-          codConfirmationAccepted,
-          policyAccepted: true,
-          lines: cart.map((line) => ({
-            variantId: line.variantId,
-            quantity: line.quantity,
-            ...(line.observedUnitPricePaise !== undefined
-              ? { observedUnitPricePaise: line.observedUnitPricePaise }
-              : {}),
-          })),
-        }),
-      });
-      setSession(created);
-      storeCheckoutSessionId(created.id);
-    } catch (createError) {
-      setError(
-        createError instanceof Error ? createError.message : "Checkout could not be created.",
-      );
-    } finally {
-      setBusy(false);
-    }
-  };
 
-  const confirmCod = async () => {
-    if (!auth.accessToken || !session) return;
     setBusy(true);
     setError("");
+    setStatusMessage("Securing your order…");
+
     try {
-      const confirmed = await apiRequest<OrderDto>(
-        `/checkout/sessions/${session.id}/confirm-cod`,
-        auth.accessToken,
-        {
-          method: "POST",
-          headers: { "idempotency-key": `confirm-${session.id}` },
-        },
-      );
-      setOrder(confirmed);
-      clearCart();
-      setCart([]);
-    } catch (confirmError) {
+      // 1. Create or retrieve active session
+      let currentSession = session;
+      if (!currentSession || currentSession.status !== "active") {
+        currentSession = await apiRequest<CheckoutSessionDto>(
+          "/checkout/sessions",
+          auth.accessToken,
+          {
+            method: "POST",
+            headers: { "idempotency-key": checkoutIdempotencyKey() },
+            body: JSON.stringify({
+              addressId,
+              shippingMethodId,
+              ...(couponCode.trim() ? { couponCode: couponCode.trim() } : {}),
+              paymentMethod,
+              codConfirmationAccepted: true,
+              policyAccepted: true,
+              lines: cart.map((line) => ({
+                variantId: line.variantId,
+                quantity: line.quantity,
+                ...(line.observedUnitPricePaise !== undefined
+                  ? { observedUnitPricePaise: line.observedUnitPricePaise }
+                  : {}),
+              })),
+            }),
+          },
+        );
+        setSession(currentSession);
+        storeCheckoutSessionId(currentSession.id);
+      }
+
+      // 2. Action based on payment method
+      if (paymentMethod === "cod") {
+        setStatusMessage("Confirming Cash on Delivery order…");
+        const confirmed = await apiRequest<OrderDto>(
+          `/checkout/sessions/${currentSession.id}/confirm-cod`,
+          auth.accessToken,
+          {
+            method: "POST",
+            headers: { "idempotency-key": `confirm-${currentSession.id}` },
+          },
+        );
+        setOrder(confirmed);
+        clearCart();
+        setCart([]);
+        clearCheckoutAttempt();
+        setSession(null);
+      } else {
+        // Online Payment via Razorpay
+        await handleOnlinePayment(currentSession, auth.accessToken);
+      }
+    } catch (orderError) {
       setError(
-        confirmError instanceof Error ? confirmError.message : "COD order could not be confirmed.",
+        orderError instanceof Error
+          ? orderError.message
+          : "Order could not be confirmed. Please try again.",
       );
     } finally {
       setBusy(false);
+      setStatusMessage("");
     }
   };
 
@@ -235,21 +321,51 @@ export function CheckoutPage({ gstin }: { gstin: string }) {
       </div>
     );
 
+  // Success Screen
   if (order)
     return (
       <div className="shell-container py-16">
-        <section className="mx-auto max-w-2xl rounded-lg border border-success/20 bg-success/5 p-8 text-center">
-          <CheckCircle2 aria-hidden="true" className="mx-auto size-12 text-success" />
-          <p className="mt-5 text-xs font-bold uppercase tracking-[0.18em] text-success">
-            Order confirmed
+        <section className="mx-auto max-w-2xl rounded-2xl border border-success/30 bg-success/5 p-8 text-center shadow-raised">
+          <CheckCircle2 aria-hidden="true" className="mx-auto size-16 text-success" />
+          <p className="mt-5 text-xs font-bold uppercase tracking-[0.2em] text-success">
+            Order Placed Successfully!
           </p>
-          <h1 className="mt-2 text-3xl font-semibold">{order.orderNumber}</h1>
-          <p className="mt-3 text-sm text-muted">
-            Cash on delivery is recorded as pending. No online payment was collected.
+          <h1 className="mt-2 text-3xl font-bold tracking-tight text-ink sm:text-4xl">
+            {order.orderNumber}
+          </h1>
+          <p className="mt-3 text-sm text-charcoal">
+            Thank you for ordering with THREAD by Snap Cart. Your Cash on Delivery order has been
+            recorded and our team is preparing it for dispatch.
           </p>
-          <Button asChild className="mt-7">
-            <Link href="/account">View account</Link>
-          </Button>
+
+          <div className="mt-6 rounded-lg border border-ink/10 bg-paper p-4 text-left text-sm">
+            <p className="font-semibold text-ink">Delivery Address:</p>
+            <p className="mt-1 text-muted">
+              {order.address.fullName} • {order.address.phone}
+            </p>
+            <p className="text-muted">
+              {order.address.addressLine1}
+              {order.address.addressLine2 ? `, ${order.address.addressLine2}` : ""},{" "}
+              {order.address.city}, {order.address.state} {order.address.postalCode}
+            </p>
+          </div>
+
+          <div className="mt-7 flex flex-wrap items-center justify-center gap-4">
+            <Button asChild size="lg" variant="gold">
+              <Link href="/men">Continue Shopping</Link>
+            </Button>
+            <a
+              href={`https://wa.me/916289332132?text=${encodeURIComponent(
+                `Hi Snap Cart, I just placed order ${order.orderNumber}. Please update me on delivery status.`,
+              )}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 rounded-md border border-success/30 bg-success/10 px-5 py-3 text-sm font-semibold text-success hover:bg-success/20 transition-colors"
+            >
+              <MessageCircle aria-hidden="true" className="size-4" />
+              WhatsApp Support
+            </a>
+          </div>
         </section>
       </div>
     );
@@ -269,7 +385,7 @@ export function CheckoutPage({ gstin }: { gstin: string }) {
       </div>
     );
 
-  // Compute estimated totals for mobile bar and summary
+  // Compute totals
   const cartSubtotal = cart.reduce(
     (sum, line) => sum + (line.observedUnitPricePaise ?? 0) * line.quantity,
     0,
@@ -278,70 +394,53 @@ export function CheckoutPage({ gstin }: { gstin: string }) {
   const estimatedShipping = selectedMethod?.ratePaise ?? 0;
   const taxRate = paymentMethod === "cod" ? 5 : 3;
   const estimatedTax = Math.round((cartSubtotal * taxRate) / 100);
-  const estimatedTotal = cartSubtotal > 0 ? cartSubtotal + estimatedShipping + estimatedTax : 0;
+  const estimatedTotal =
+    session?.totals.totalPaise ??
+    (cartSubtotal > 0 ? cartSubtotal + estimatedShipping + estimatedTax : 0);
 
   const inactiveSession = session && session.status !== "active";
+
   return (
     <div className="shell-container pb-40 pt-8 lg:pb-16">
       <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted">Secure checkout</p>
       <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">
         Confirm delivery and totals
       </h1>
+
       <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_24rem]">
         <div className="space-y-6">
+          {/* Active Reservation Notice */}
           {session?.status === "active" ? (
-            <section className="rounded-lg border border-gold/40 bg-gold/10 p-5">
-              <div className="flex items-start gap-3">
-                <Clock3 aria-hidden="true" className="mt-0.5 size-5" />
-                <div>
-                  <h2 className="font-semibold">Stock reserved</h2>
-                  <p className="mt-1 text-sm text-muted">
-                    Reservation expires in{" "}
-                    <ReservationTimer expiresAt={session.expiresAt} onExpired={() => void load()} />
-                    .
-                  </p>
-                  {session.paymentMethod === "payment_placeholder" ? (
-                    <p className="mt-2 text-sm">
-                      Review the confirmed total below, then complete your online payment.
-                    </p>
-                  ) : (
-                    <p className="mt-2 text-sm">
-                      Review the confirmed total and place your COD order.
-                    </p>
-                  )}
+            <section className="rounded-lg border border-gold/40 bg-gold/10 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 text-sm">
+                  <Clock3 aria-hidden="true" className="size-4 text-gold" />
+                  <span>
+                    Stock reserved for{" "}
+                    <strong>
+                      <ReservationTimer
+                        expiresAt={session.expiresAt}
+                        onExpired={() => void load()}
+                      />
+                    </strong>
+                  </span>
                 </div>
-              </div>
-              <Button
-                className="mt-4"
-                disabled={busy}
-                onClick={() => void cancel()}
-                size="sm"
-                variant="outline"
-              >
-                Cancel and release stock
-              </Button>
-              {session.paymentMethod === "cod" ? (
                 <Button
-                  className="ml-2 mt-4 font-semibold"
                   disabled={busy}
-                  onClick={() => void confirmCod()}
+                  onClick={() => void cancel()}
                   size="sm"
-                  variant="gold"
+                  variant="outline"
+                  className="text-xs"
                 >
-                  <Check aria-hidden="true" className="size-4 mr-1.5" />
-                  {busy ? "Confirming…" : "Confirm & Place COD Order"}
+                  Cancel
                 </Button>
-              ) : null}
+              </div>
             </section>
           ) : null}
-          {session?.status === "active" &&
-          session.paymentMethod === "payment_placeholder" &&
-          auth.accessToken ? (
-            <PaymentAction accessToken={auth.accessToken} session={session} />
-          ) : null}
+
           {inactiveSession ? (
             <section className="rounded-lg border border-error/25 bg-error/5 p-5">
-              <h2 className="font-semibold">This checkout is {session.status.replace("_", " ")}</h2>
+              <h2 className="font-semibold">This checkout session is {session.status.replace("_", " ")}</h2>
               <p className="mt-2 text-sm text-muted">
                 Start again to re-check prices, delivery rules and stock.
               </p>
@@ -360,15 +459,13 @@ export function CheckoutPage({ gstin }: { gstin: string }) {
                 </h2>
                 <p className="mt-1 text-sm text-muted">Select a saved address or add a new one.</p>
               </div>
-              {!session ? (
-                <Button
-                  onClick={() => setShowAddressForm((value) => !value)}
-                  size="sm"
-                  variant="outline"
-                >
-                  {showAddressForm ? "Close form" : "Add address"}
-                </Button>
-              ) : null}
+              <Button
+                onClick={() => setShowAddressForm((value) => !value)}
+                size="sm"
+                variant="outline"
+              >
+                {showAddressForm ? "Close form" : "Add address"}
+              </Button>
             </div>
             {showAddressForm ? (
               <CheckoutAddressForm
@@ -388,7 +485,6 @@ export function CheckoutPage({ gstin }: { gstin: string }) {
                   >
                     <input
                       checked={addressId === address.id}
-                      disabled={Boolean(session)}
                       name="address"
                       onChange={() => setAddressId(address.id)}
                       type="radio"
@@ -435,7 +531,6 @@ export function CheckoutPage({ gstin }: { gstin: string }) {
                     <span className="flex gap-3">
                       <input
                         checked={shippingMethodId === method.id}
-                        disabled={Boolean(session)}
                         name="shipping"
                         onChange={() => setShippingMethodId(method.id)}
                         type="radio"
@@ -445,13 +540,17 @@ export function CheckoutPage({ gstin }: { gstin: string }) {
                         <span className="mt-1 block text-xs text-muted">{method.description}</span>
                       </span>
                     </span>
-                    <Price amount={method.ratePaise} className="text-sm font-semibold" />
+                    {method.ratePaise === 0 ? (
+                      <span className="text-sm font-semibold text-success">Free</span>
+                    ) : (
+                      <Price amount={method.ratePaise} className="text-sm font-semibold" />
+                    )}
                   </label>
                 ))}
               </div>
             ) : (
               <p className="mt-4 rounded-md bg-error/5 p-4 text-sm text-error">
-                No active shipping method is configured. An administrator must add a reviewed rate.
+                No active shipping method is configured.
               </p>
             )}
           </section>
@@ -459,19 +558,48 @@ export function CheckoutPage({ gstin }: { gstin: string }) {
           {/* Payment Method */}
           <section className="rounded-lg border border-ink/10 p-5">
             <h2 className="flex items-center gap-2 text-xl font-semibold">
-              <PackageCheck aria-hidden="true" className="size-5" /> Coupon and payment
+              <PackageCheck aria-hidden="true" className="size-5" /> Payment Method & Coupon
             </h2>
+
             <label className="mt-5 grid gap-1 text-sm font-medium">
               Coupon code <span className="font-normal text-muted">(optional)</span>
               <Input
-                disabled={Boolean(session)}
                 onChange={(event) => setCouponCode(event.target.value.toUpperCase())}
                 placeholder="Enter code"
                 value={couponCode}
               />
             </label>
+
             <fieldset className="mt-6 grid gap-3">
-              <legend className="text-sm font-semibold">Choose payment method</legend>
+              <legend className="text-sm font-semibold">Choose payment option</legend>
+
+              {/* Cash on Delivery */}
+              {bootstrap!.codEnabled ? (
+                <label
+                  className={`flex cursor-pointer gap-3.5 rounded-lg border p-4 transition-colors ${
+                    paymentMethod === "cod"
+                      ? "border-ink bg-ivory shadow-xs ring-1 ring-ink/20"
+                      : "border-ink/15 hover:border-ink/30"
+                  }`}
+                >
+                  <input
+                    checked={paymentMethod === "cod"}
+                    className="mt-1 size-4 accent-ink"
+                    name="payment"
+                    onChange={() => setPaymentMethod("cod")}
+                    type="radio"
+                  />
+                  <div className="flex flex-1 items-center justify-between gap-2">
+                    <span className="flex items-center gap-2 text-sm font-semibold">
+                      <Banknote aria-hidden="true" className="size-4 text-ink" />
+                      Cash on Delivery (COD)
+                    </span>
+                    <span className="rounded bg-ink/10 px-2 py-0.5 text-[0.68rem] font-bold text-charcoal">
+                      + 5% tax
+                    </span>
+                  </div>
+                </label>
+              ) : null}
 
               {/* Online Payment */}
               <label
@@ -484,7 +612,6 @@ export function CheckoutPage({ gstin }: { gstin: string }) {
                 <input
                   checked={paymentMethod === "payment_placeholder"}
                   className="mt-1 size-4 accent-ink"
-                  disabled={Boolean(session)}
                   name="payment"
                   onChange={() => setPaymentMethod("payment_placeholder")}
                   type="radio"
@@ -492,98 +619,78 @@ export function CheckoutPage({ gstin }: { gstin: string }) {
                 <div className="flex flex-1 items-center justify-between gap-2">
                   <span className="flex items-center gap-2 text-sm font-semibold">
                     <CreditCard aria-hidden="true" className="size-4 text-ink" />
-                    Online Payment
+                    Online Payment (UPI, Cards, NetBanking)
                   </span>
-                  <div className="flex items-center gap-1.5">
-                    <span className="rounded bg-success/15 px-2 py-0.5 text-[0.68rem] font-bold uppercase tracking-wider text-success">
-                      + 3% tax
-                    </span>
-                  </div>
+                  <span className="rounded bg-success/15 px-2 py-0.5 text-[0.68rem] font-bold uppercase tracking-wider text-success">
+                    + 3% tax
+                  </span>
                 </div>
               </label>
-
-              {/* COD */}
-              {bootstrap!.codEnabled ? (
-                <>
-                  <label
-                    className={`flex cursor-pointer gap-3.5 rounded-lg border p-4 transition-colors ${
-                      paymentMethod === "cod"
-                        ? "border-ink bg-ivory shadow-xs ring-1 ring-ink/20"
-                        : "border-ink/15 hover:border-ink/30"
-                    }`}
-                  >
-                    <input
-                      checked={paymentMethod === "cod"}
-                      className="mt-1 size-4 accent-ink"
-                      disabled={Boolean(session)}
-                      name="payment"
-                      onChange={() => setPaymentMethod("cod")}
-                      type="radio"
-                    />
-                    <div className="flex flex-1 items-center justify-between gap-2">
-                      <span className="flex items-center gap-2 text-sm font-semibold">
-                        <Banknote aria-hidden="true" className="size-4 text-ink" />
-                        Cash on Delivery
-                      </span>
-                      <span className="rounded bg-ink/10 px-2 py-0.5 text-[0.68rem] font-bold text-charcoal">
-                        + 5% tax
-                      </span>
-                    </div>
-                  </label>
-                  {paymentMethod === "cod" && bootstrap!.codConfirmationRequired ? (
-                    <label className="flex items-start gap-3 rounded-md border border-gold/40 bg-gold/5 p-4 text-sm">
-                      <input
-                        checked={codConfirmationAccepted}
-                        className="mt-0.5 size-4 accent-gold"
-                        disabled={Boolean(session)}
-                        onChange={(event) => setCodConfirmationAccepted(event.target.checked)}
-                        type="checkbox"
-                      />
-                      <span>I confirm that I will pay the total on delivery.</span>
-                    </label>
-                  ) : null}
-                </>
-              ) : null}
             </fieldset>
 
-            {/* WhatsApp Help */}
-            <div className="mt-5 flex items-center justify-between rounded-lg border border-success/30 bg-success/5 p-3 text-xs text-charcoal">
-              <span className="flex items-center gap-2">
-                <MessageCircle aria-hidden="true" className="size-4 text-success shrink-0" />
-                Need help? Chat with us.
-              </span>
-              <a
-                href={`https://wa.me/916289332132?text=${encodeURIComponent("Hi, I need assistance with my order on THREAD.")}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="font-bold text-success underline hover:text-success/80 ml-2"
-              >
-                WhatsApp
-              </a>
+            {/* Direct Razorpay Link & WhatsApp Help */}
+            <div className="mt-5 space-y-2">
+              <div className="flex items-center justify-between rounded-lg border border-gold/30 bg-gold/5 p-3 text-xs text-charcoal">
+                <span className="flex items-center gap-2">
+                  <ExternalLink aria-hidden="true" className="size-4 text-gold shrink-0" />
+                  Direct Payment Link:
+                </span>
+                <a
+                  href="https://razorpay.me/@threadstore323"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-bold text-ink underline hover:text-gold ml-2"
+                >
+                  razorpay.me/@threadstore323
+                </a>
+              </div>
+
+              <div className="flex items-center justify-between rounded-lg border border-success/30 bg-success/5 p-3 text-xs text-charcoal">
+                <span className="flex items-center gap-2">
+                  <MessageCircle aria-hidden="true" className="size-4 text-success shrink-0" />
+                  Need help with your order?
+                </span>
+                <a
+                  href={`https://wa.me/916289332132?text=${encodeURIComponent(
+                    "Hi, I need assistance with my order on THREAD.",
+                  )}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-bold text-success underline hover:text-success/80 ml-2"
+                >
+                  WhatsApp Us
+                </a>
+              </div>
             </div>
           </section>
 
           {/* Policy Accept */}
-          {!session ? (
-            <label className="flex items-start gap-3 rounded-lg border border-ink/10 p-5 text-sm">
-              <input
-                checked={policyAccepted}
-                className="mt-0.5 size-5 accent-gold"
-                onChange={(event) => setPolicyAccepted(event.target.checked)}
-                type="checkbox"
-              />
-              <span>
-                I acknowledge the{" "}
-                <Link className="font-semibold underline" href="/shipping-delivery">
-                  shipping
-                </Link>
-                ,{" "}
-                <Link className="font-semibold underline" href="/returns-exchanges">
-                  returns
-                </Link>{" "}
-                and order-cancellation policies.
-              </span>
-            </label>
+          <label className="flex items-start gap-3 rounded-lg border border-ink/10 p-5 text-sm">
+            <input
+              checked={policyAccepted}
+              className="mt-0.5 size-5 accent-gold"
+              onChange={(event) => setPolicyAccepted(event.target.checked)}
+              type="checkbox"
+            />
+            <span>
+              I acknowledge the{" "}
+              <Link className="font-semibold underline" href="/shipping-delivery">
+                shipping
+              </Link>
+              ,{" "}
+              <Link className="font-semibold underline" href="/returns-exchanges">
+                returns
+              </Link>{" "}
+              and order cancellation policies.
+            </span>
+          </label>
+
+          {/* Status / Error Banner */}
+          {statusMessage ? (
+            <div className="flex items-center gap-2 rounded-md bg-gold/10 p-4 text-sm font-medium text-ink">
+              <LoaderCircle className="size-4 animate-spin" />
+              {statusMessage}
+            </div>
           ) : null}
 
           {error ? (
@@ -592,39 +699,43 @@ export function CheckoutPage({ gstin }: { gstin: string }) {
             </p>
           ) : null}
 
-          {/* Place Order Button */}
-          {!session ? (
+          {/* MAIN ORDER CONFIRMATION BUTTON - PLACED DIRECTLY AT THE BOTTOM NEAR CUSTOMER'S EYES */}
+          <div className="pt-2">
             <Button
-              className="w-full gap-2 font-semibold shadow-sm"
+              className="w-full gap-2 font-bold text-base py-6 shadow-md"
               disabled={busy || bootstrap!.shippingMethods.length === 0}
-              onClick={() => void createCheckout()}
+              onClick={() => void handlePlaceOrder()}
               size="lg"
               variant="gold"
             >
-              <ShieldCheck aria-hidden="true" className="size-5" />
               {busy ? (
-                "Processing your order…"
+                <>
+                  <LoaderCircle className="size-5 animate-spin" />
+                  {statusMessage || "Processing your order…"}
+                </>
               ) : paymentMethod === "cod" ? (
                 <>
-                  Place COD Order
+                  <ShieldCheck aria-hidden="true" className="size-5" />
+                  Place Cash on Delivery Order
                   {estimatedTotal > 0 && (
-                    <span className="ml-1 font-normal opacity-80">
+                    <span className="ml-1 font-normal opacity-90">
                       — Pay <Price amount={estimatedTotal} className="inline text-base font-bold" />
                     </span>
                   )}
                 </>
               ) : (
                 <>
-                  Proceed to Pay
+                  <CreditCard aria-hidden="true" className="size-5" />
+                  Proceed to Online Payment
                   {estimatedTotal > 0 && (
-                    <span className="ml-1 font-normal opacity-80">
+                    <span className="ml-1 font-normal opacity-90">
                       — <Price amount={estimatedTotal} className="inline text-base font-bold" />
                     </span>
                   )}
                 </>
               )}
             </Button>
-          ) : null}
+          </div>
         </div>
 
         {/* Order Summary Sidebar */}
@@ -638,26 +749,26 @@ export function CheckoutPage({ gstin }: { gstin: string }) {
       </div>
 
       {/* Mobile sticky bottom bar */}
-      {!session ? (
-        <div className="fixed inset-x-0 bottom-16 z-header flex items-center justify-between gap-3 border-t bg-paper p-3 shadow-raised lg:hidden">
-          <div>
-            <p className="text-xs text-muted">
-              Total (incl. delivery + {paymentMethod === "cod" ? "5%" : "3%"} tax)
-            </p>
-            <Price
-              amount={estimatedTotal}
-            />
-          </div>
-          <Button
-            className="font-semibold"
-            disabled={busy || bootstrap!.shippingMethods.length === 0}
-            onClick={() => void createCheckout()}
-            variant="gold"
-          >
-            {busy ? "Processing…" : paymentMethod === "cod" ? "Place COD Order" : "Proceed to Pay"}
-          </Button>
+      <div className="fixed inset-x-0 bottom-16 z-header flex items-center justify-between gap-3 border-t bg-paper p-3 shadow-raised lg:hidden">
+        <div>
+          <p className="text-xs text-muted">
+            Total ({paymentMethod === "cod" ? "COD" : "Online"})
+          </p>
+          <Price amount={estimatedTotal} className="font-bold text-base" />
         </div>
-      ) : null}
+        <Button
+          className="font-bold px-6"
+          disabled={busy || bootstrap!.shippingMethods.length === 0}
+          onClick={() => void handlePlaceOrder()}
+          variant="gold"
+        >
+          {busy
+            ? "Processing…"
+            : paymentMethod === "cod"
+              ? "Place COD Order"
+              : "Pay Now"}
+        </Button>
+      </div>
     </div>
   );
 }
