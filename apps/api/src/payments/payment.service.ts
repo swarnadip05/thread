@@ -398,7 +398,7 @@ export class PaymentService {
         providerOrderId: payment.providerOrderId,
         providerPaymentId: providerPayment.id,
       });
-      await this.notifications?.orderCreated(order, payment.userId);
+      await this.notifications?.orderCreated(order, payment.userId).catch(() => {});
       this.notifications?.paymentUpdated(payment.orderId, payment.userId, "captured");
       return;
     }

@@ -116,22 +116,28 @@ export class NotificationService {
       this.realtime.emitAdmin({ reason: "new_order", entityId: order.id });
     }
     await Promise.all([
-      this.jobs.enqueue({
-        name: "email.order-confirmation",
-        key: `email.order-confirmation:${order.id}`,
-        payload: { orderId: order.id },
-      }),
-      this.jobs.enqueue({
-        name: "invoice.generate",
-        key: `invoice.generate:${order.id}`,
-        payload: { orderId: order.id },
-      }),
+      this.jobs
+        .enqueue({
+          name: "email.order-confirmation",
+          key: `email.order-confirmation:${order.id}`,
+          payload: { orderId: order.id },
+        })
+        .catch(() => {}),
+      this.jobs
+        .enqueue({
+          name: "invoice.generate",
+          key: `invoice.generate:${order.id}`,
+          payload: { orderId: order.id },
+        })
+        .catch(() => {}),
       ...order.items.map((item) =>
-        this.jobs.enqueue({
-          name: "inventory.low-stock" as const,
-          key: `inventory.low-stock:${order.id}:${item.variantId}`,
-          payload: { variantId: item.variantId },
-        }),
+        this.jobs
+          .enqueue({
+            name: "inventory.low-stock" as const,
+            key: `inventory.low-stock:${order.id}:${item.variantId}`,
+            payload: { variantId: item.variantId },
+          })
+          .catch(() => {}),
       ),
     ]);
   }

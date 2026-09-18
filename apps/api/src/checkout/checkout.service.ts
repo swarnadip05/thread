@@ -119,8 +119,8 @@ export class CheckoutService {
     });
     await this.audit("checkout.cod_order_confirmed", userId, order.id, context, {
       orderNumber: order.orderNumber,
-    });
-    await this.notifications?.orderCreated(order, userId);
+    }).catch(() => {});
+    await this.notifications?.orderCreated(order, userId).catch(() => {});
     return order;
   }
 
