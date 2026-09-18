@@ -113,21 +113,34 @@ export function ProductImportModal({ isOpen, onClose, onSuccess }: ProductImport
     }
   }
 
+  async function fileToBase64(f: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        // data:<mime>;base64,<data> — strip the prefix
+        resolve(result.includes(",") ? (result.split(",")[1] ?? result) : result);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(f);
+    });
+  }
+
   async function handleInspectFile() {
     if (!file || !accessToken) return;
     setLoading(true);
     setError("");
 
     try {
-      const formData = new FormData();
-      formData.append("file", file);
+      const fileBase64 = await fileToBase64(file);
 
       const data = await apiRequest<ImportPreviewData>(
         "/admin/products/import-preview",
         accessToken,
         {
           method: "POST",
-          body: formData,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fileBase64, filename: file.name }),
         },
       );
 
@@ -151,12 +164,12 @@ export function ProductImportModal({ isOpen, onClose, onSuccess }: ProductImport
     setStep("executing");
 
     try {
-      const formData = new FormData();
-      formData.append("file", file);
+      const fileBase64 = await fileToBase64(file);
 
       const data = await apiRequest<ImportExecutionData>("/admin/products/import", accessToken, {
         method: "POST",
-        body: formData,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileBase64, filename: file.name }),
       });
 
       setResult(data);
