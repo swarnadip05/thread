@@ -215,46 +215,63 @@ export function ProductUploadWizard() {
   }
 
   return (
-    <div className="rounded-xl border border-ink/10 bg-paper p-6 shadow-sm">
+    <div className="rounded-2xl border-2 border-zinc-200 bg-white p-6 shadow-xl text-zinc-950">
       {/* Header */}
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-4 border-b border-ink/10 pb-4">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-4 border-b border-zinc-200 pb-4">
         <div>
-          <h2 className="text-2xl font-bold">Product Photo Upload Wizard</h2>
-          <p className="text-sm text-paper/60">
+          <h2 className="text-2xl font-black text-zinc-950">Product Photo Upload Wizard</h2>
+          <p className="text-sm font-semibold text-zinc-600">
             Upload a folder of photos, group them per product, and set size pricing automatically.
           </p>
         </div>
-        <Button asChild variant="outline">
-          <Link href="/admin/products">Back to Products</Link>
-        </Button>
+        <Link
+          href="/admin/products"
+          className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-zinc-100 border-2 border-zinc-300 px-4 text-sm font-black text-zinc-900 hover:bg-zinc-200 transition"
+        >
+          ← Back to Products
+        </Link>
       </div>
 
       {/* Step Indicator */}
       <div className="mb-8 grid grid-cols-4 gap-2 text-center text-xs font-semibold sm:text-sm">
         <div
-          className={`rounded-lg py-2 ${
-            step === 1 ? "bg-ink text-paper" : step > 1 ? "bg-ink/10 text-ink" : "bg-ink/5 text-ink/40"
+          className={`rounded-xl py-2.5 px-3 text-xs font-black uppercase tracking-wider transition ${
+            step === 1
+              ? "bg-zinc-950 text-amber-400 shadow-md border-2 border-zinc-950"
+              : step > 1
+              ? "bg-amber-100 text-amber-950 border-2 border-amber-300"
+              : "bg-zinc-100 text-zinc-400 border-2 border-zinc-200"
           }`}
         >
           1. Select Photos
         </div>
         <div
-          className={`rounded-lg py-2 ${
-            step === 2 ? "bg-ink text-paper" : step > 2 ? "bg-ink/10 text-ink" : "bg-ink/5 text-ink/40"
+          className={`rounded-xl py-2.5 px-3 text-xs font-black uppercase tracking-wider transition ${
+            step === 2
+              ? "bg-zinc-950 text-amber-400 shadow-md border-2 border-zinc-950"
+              : step > 2
+              ? "bg-amber-100 text-amber-950 border-2 border-amber-300"
+              : "bg-zinc-100 text-zinc-400 border-2 border-zinc-200"
           }`}
         >
           2. Category & Prices
         </div>
         <div
-          className={`rounded-lg py-2 ${
-            step === 3 ? "bg-ink text-paper" : step > 3 ? "bg-ink/10 text-ink" : "bg-ink/5 text-ink/40"
+          className={`rounded-xl py-2.5 px-3 text-xs font-black uppercase tracking-wider transition ${
+            step === 3
+              ? "bg-zinc-950 text-amber-400 shadow-md border-2 border-zinc-950"
+              : step > 3
+              ? "bg-amber-100 text-amber-950 border-2 border-amber-300"
+              : "bg-zinc-100 text-zinc-400 border-2 border-zinc-200"
           }`}
         >
           3. Preview
         </div>
         <div
-          className={`rounded-lg py-2 ${
-            step === 4 ? "bg-ink text-paper" : "bg-ink/5 text-ink/40"
+          className={`rounded-xl py-2.5 px-3 text-xs font-black uppercase tracking-wider transition ${
+            step === 4
+              ? "bg-zinc-950 text-amber-400 shadow-md border-2 border-zinc-950"
+              : "bg-zinc-100 text-zinc-400 border-2 border-zinc-200"
           }`}
         >
           4. Upload
@@ -268,11 +285,11 @@ export function ProductUploadWizard() {
             onDragOver={(e) => e.preventDefault()}
             onDrop={handleDrop}
             onClick={() => fileInputRef.current?.click()}
-            className="flex min-h-[220px] cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-ink/20 bg-ink/[0.02] p-8 text-center transition hover:border-ink/40 hover:bg-ink/[0.04]"
+            className="flex min-h-[220px] cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-zinc-300 bg-zinc-50 p-8 text-center transition hover:border-amber-400 hover:bg-amber-50/20"
           >
-            <FolderUp className="mb-3 h-12 w-12 text-ink/40" />
-            <h3 className="text-lg font-semibold">Drop your product photos here</h3>
-            <p className="mt-1 text-sm text-paper/60">
+            <FolderUp className="mb-3 h-12 w-12 text-zinc-400" />
+            <h3 className="text-lg font-black text-zinc-950">Drop your product photos here</h3>
+            <p className="mt-1 text-sm font-medium text-zinc-600">
               or click to browse from your computer. Select all 4–5 photos for each product.
             </p>
             <input
@@ -288,15 +305,19 @@ export function ProductUploadWizard() {
           {files.length > 0 && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <span className="font-semibold">{files.length} photos selected</span>
-                <Button variant="outline" size="sm" onClick={() => setFiles([])}>
+                <span className="font-black text-zinc-950">{files.length} photos selected</span>
+                <button
+                  type="button"
+                  onClick={() => setFiles([])}
+                  className="rounded-lg border-2 border-zinc-300 bg-white px-3 py-1 text-xs font-bold text-zinc-800 hover:bg-zinc-100 transition"
+                >
                   Clear all
-                </Button>
+                </button>
               </div>
 
-              <div className="grid max-h-[300px] grid-cols-4 gap-2 overflow-y-auto rounded-lg border border-ink/10 p-2 sm:grid-cols-6 md:grid-cols-8">
+              <div className="grid max-h-[300px] grid-cols-4 gap-2 overflow-y-auto rounded-xl border-2 border-zinc-200 bg-zinc-50 p-2 sm:grid-cols-6 md:grid-cols-8">
                 {sortedFiles.map((file, idx) => (
-                  <div key={idx} className="group relative aspect-square rounded bg-ink/5 overflow-hidden">
+                  <div key={idx} className="group relative aspect-square rounded-lg bg-zinc-200 overflow-hidden shadow-sm">
                     <img
                       src={URL.createObjectURL(file)}
                       alt={file.name}
@@ -305,11 +326,11 @@ export function ProductUploadWizard() {
                     <button
                       type="button"
                       onClick={() => removeFile(idx)}
-                      className="absolute top-1 right-1 rounded-full bg-black/70 p-0.5 text-white opacity-0 transition group-hover:opacity-100"
+                      className="absolute top-1 right-1 rounded-full bg-black/80 p-0.5 text-white opacity-0 transition group-hover:opacity-100"
                     >
                       <X className="h-3 w-3" />
                     </button>
-                    <span className="absolute bottom-0 left-0 right-0 bg-black/60 px-1 py-0.5 text-[9px] text-white truncate">
+                    <span className="absolute bottom-0 left-0 right-0 bg-black/75 px-1 py-0.5 text-[9px] font-bold text-white truncate">
                       {idx + 1}. {file.name}
                     </span>
                   </div>
@@ -319,13 +340,14 @@ export function ProductUploadWizard() {
           )}
 
           <div className="flex justify-end">
-            <Button
+            <button
+              type="button"
               disabled={files.length === 0}
               onClick={() => setStep(2)}
-              className="px-6"
+              className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-black font-black px-8 text-sm shadow-md transition disabled:opacity-50"
             >
-              Continue to Settings ({files.length} Photos)
-            </Button>
+              Continue to Settings ({files.length} Photos) →
+            </button>
           </div>
         </div>
       )}
@@ -334,12 +356,12 @@ export function ProductUploadWizard() {
       {step === 2 && (
         <div className="space-y-6">
           {/* Quick Size Selection Buttons */}
-          <div className="rounded-xl border-2 border-amber-300 bg-amber-50/50 p-5">
+          <div className="rounded-2xl border-2 border-amber-300 bg-amber-50/60 p-5">
             <div className="mb-3">
-              <h4 className="text-base font-black text-zinc-900">
+              <h4 className="text-base font-black text-zinc-950">
                 ⚡ Quick Size Selection (Click to choose which sizes are available)
               </h4>
-              <p className="text-xs font-medium text-zinc-600">
+              <p className="text-xs font-bold text-zinc-700">
                 Select which sizes will be available for purchase. Customers can only buy the sizes you enable.
               </p>
             </div>
@@ -356,17 +378,21 @@ export function ProductUploadWizard() {
                     onClick={() => toggleGlobalSize(size)}
                     className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-black transition shadow-sm ${
                       isSelected
-                        ? "bg-zinc-900 text-white ring-2 ring-amber-400"
-                        : "bg-white text-zinc-400 border border-zinc-300 hover:bg-zinc-100"
+                        ? "bg-zinc-950 text-amber-400 border-2 border-amber-400 shadow-md ring-2 ring-amber-400/40"
+                        : "bg-white text-zinc-900 border-2 border-zinc-300 hover:border-zinc-500 hover:bg-zinc-100"
                     }`}
                   >
                     {isSelected ? (
                       <CheckCircle2 className="h-4 w-4 text-amber-400" />
                     ) : (
-                      <Square className="h-4 w-4 text-zinc-300" />
+                      <Square className="h-4 w-4 text-zinc-400" />
                     )}
                     <span>Size {size}</span>
-                    <span className="rounded bg-amber-400/20 px-1.5 py-0.5 text-xs text-amber-700">
+                    <span
+                      className={`rounded px-1.5 py-0.5 text-xs font-black ${
+                        isSelected ? "bg-amber-400/20 text-amber-300" : "bg-zinc-100 text-zinc-800"
+                      }`}
+                    >
                       ₹{price}
                     </span>
                   </button>
@@ -377,9 +403,9 @@ export function ProductUploadWizard() {
 
           <div className="grid gap-6 sm:grid-cols-2">
             {/* Photos per Product */}
-            <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
-              <label className="block text-sm font-black text-zinc-900">Photos per Product</label>
-              <p className="mb-3 text-xs font-medium text-zinc-600">
+            <div className="rounded-2xl border-2 border-zinc-200 bg-zinc-50 p-4">
+              <label className="block text-sm font-black text-zinc-950">Photos per Product</label>
+              <p className="mb-3 text-xs font-semibold text-zinc-600">
                 How many photos belong to each t-shirt design?
               </p>
               <div className="flex items-center gap-3">
@@ -389,28 +415,28 @@ export function ProductUploadWizard() {
                   max={20}
                   value={imagesPerProduct}
                   onChange={(e) => setImagesPerProduct(Math.max(1, Number(e.target.value)))}
-                  className="w-24 rounded-lg border-2 border-zinc-300 bg-white px-3 py-2 text-center text-lg font-black"
+                  className="w-24 rounded-xl border-2 border-zinc-400 bg-white px-3 py-2 text-center text-lg font-black text-zinc-950 focus:border-amber-400 focus:outline-none shadow-sm"
                 />
-                <span className="text-sm font-bold text-zinc-700">
-                  photos per product = <strong>{productGroups.length} products</strong>
+                <span className="text-sm font-bold text-zinc-800">
+                  photos per product = <strong className="text-black">{productGroups.length} products</strong>
                 </span>
               </div>
             </div>
 
             {/* Target Audience */}
-            <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
-              <label className="block text-sm font-black text-zinc-900">Target Audience</label>
-              <p className="mb-3 text-xs font-medium text-zinc-600">Who is this batch for?</p>
+            <div className="rounded-2xl border-2 border-zinc-200 bg-zinc-50 p-4">
+              <label className="block text-sm font-black text-zinc-950">Target Audience</label>
+              <p className="mb-3 text-xs font-semibold text-zinc-600">Who is this batch for?</p>
               <div className="flex gap-2">
                 {(["men", "women", "unisex"] as const).map((aud) => (
                   <button
                     key={aud}
                     type="button"
                     onClick={() => setAudience(aud)}
-                    className={`flex-1 rounded-xl py-2.5 text-sm font-black capitalize transition ${
+                    className={`flex-1 rounded-xl py-2.5 text-sm font-black capitalize transition shadow-sm ${
                       audience === aud
-                        ? "bg-zinc-950 text-white shadow-md"
-                        : "border border-zinc-300 bg-white hover:bg-zinc-100"
+                        ? "bg-zinc-950 text-white border-2 border-zinc-950 shadow-md"
+                        : "border-2 border-zinc-300 bg-white text-zinc-900 hover:bg-zinc-100 hover:text-black hover:border-zinc-400"
                     }`}
                   >
                     {aud === "men" ? "Men's" : aud === "women" ? "Women's" : "Unisex"}
@@ -420,9 +446,9 @@ export function ProductUploadWizard() {
             </div>
 
             {/* Category & Fit */}
-            <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
-              <label className="block text-sm font-black text-zinc-900">Category & Fit</label>
-              <p className="mb-3 text-xs font-medium text-zinc-600">Select fit category</p>
+            <div className="rounded-2xl border-2 border-zinc-200 bg-zinc-50 p-4">
+              <label className="block text-sm font-black text-zinc-950">Category & Fit</label>
+              <p className="mb-3 text-xs font-semibold text-zinc-600">Select fit category</p>
               <div className="flex gap-2">
                 {[
                   { slug: "oversized-t-shirts", label: "Oversized Fit" },
@@ -435,10 +461,10 @@ export function ProductUploadWizard() {
                       setCategory(cat.slug as any);
                       setProductType(cat.slug === "oversized-t-shirts" ? "oversized" : "regular");
                     }}
-                    className={`flex-1 rounded-xl py-2.5 text-xs font-black transition ${
+                    className={`flex-1 rounded-xl py-2.5 text-xs font-black transition shadow-sm ${
                       category === cat.slug
-                        ? "bg-zinc-950 text-white shadow-md"
-                        : "border border-zinc-300 bg-white hover:bg-zinc-100"
+                        ? "bg-zinc-950 text-white border-2 border-zinc-950 shadow-md"
+                        : "border-2 border-zinc-300 bg-white text-zinc-900 hover:bg-zinc-100 hover:text-black hover:border-zinc-400"
                     }`}
                   >
                     {cat.label}
@@ -448,17 +474,17 @@ export function ProductUploadWizard() {
             </div>
 
             {/* Default Colour */}
-            <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
-              <label className="block text-sm font-black text-zinc-900">Default T-Shirt Colour</label>
-              <p className="mb-3 text-xs font-medium text-zinc-600">Named into title & description automatically</p>
+            <div className="rounded-2xl border-2 border-zinc-200 bg-zinc-50 p-4">
+              <label className="block text-sm font-black text-zinc-950">Default T-Shirt Colour</label>
+              <p className="mb-3 text-xs font-semibold text-zinc-600">Named into title & description automatically</p>
               <div className="flex gap-2">
                 <select
                   value={defaultColour}
                   onChange={(e) => setDefaultColour(e.target.value)}
-                  className="w-full rounded-lg border-2 border-zinc-300 bg-white px-3 py-2 text-sm font-bold"
+                  className="w-full rounded-xl border-2 border-zinc-400 bg-white px-3 py-2.5 text-sm font-black text-zinc-950 focus:border-amber-400 focus:outline-none shadow-sm"
                 >
                   {POPULAR_COLOURS.map((clr) => (
-                    <option key={clr} value={clr}>
+                    <option key={clr} value={clr} className="text-zinc-950 font-bold bg-white">
                       {clr}
                     </option>
                   ))}
@@ -468,79 +494,89 @@ export function ProductUploadWizard() {
           </div>
 
           {/* Size-Based Pricing Section */}
-          <div className="rounded-xl border-2 border-zinc-300 bg-zinc-50 p-5">
+          <div className="rounded-2xl border-2 border-zinc-300 bg-zinc-50 p-5">
             <div className="mb-4 flex items-center justify-between">
               <div>
-                <h4 className="text-base font-black text-zinc-900">Size-Based Selling Prices (₹)</h4>
-                <p className="text-xs font-medium text-zinc-600">
+                <h4 className="text-base font-black text-zinc-950">Size-Based Selling Prices (₹)</h4>
+                <p className="text-xs font-bold text-zinc-700">
                   Configured according to your rules: S & M = ₹549, L & XL = ₹599, 2XL = ₹649
                 </p>
               </div>
-              <Badge variant="neutral">Rupees</Badge>
+              <span className="rounded-lg bg-zinc-200 px-2.5 py-1 text-xs font-black text-zinc-800 border border-zinc-300">
+                INR (₹)
+              </span>
             </div>
 
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
               <div>
-                <label className="block text-xs font-black text-zinc-700">Sizes S & M</label>
-                <div className="mt-1 flex items-center rounded-lg border-2 border-zinc-300 bg-white px-3">
-                  <span className="text-sm font-black text-zinc-500">₹</span>
+                <label className="block text-xs font-black text-zinc-800">Sizes S & M</label>
+                <div className="mt-1 flex items-center rounded-xl border-2 border-zinc-400 bg-white px-3 shadow-sm">
+                  <span className="text-sm font-black text-zinc-900">₹</span>
                   <input
                     type="number"
                     value={priceSM}
                     onChange={(e) => setPriceSM(Number(e.target.value))}
-                    className="w-full bg-transparent px-2 py-2 font-black focus:outline-none text-base"
+                    className="w-full bg-white text-zinc-950 px-2 py-2 font-black focus:outline-none text-base"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-black text-zinc-700">Sizes L & XL</label>
-                <div className="mt-1 flex items-center rounded-lg border-2 border-zinc-300 bg-white px-3">
-                  <span className="text-sm font-black text-zinc-500">₹</span>
+                <label className="block text-xs font-black text-zinc-800">Sizes L & XL</label>
+                <div className="mt-1 flex items-center rounded-xl border-2 border-zinc-400 bg-white px-3 shadow-sm">
+                  <span className="text-sm font-black text-zinc-900">₹</span>
                   <input
                     type="number"
                     value={priceLXL}
                     onChange={(e) => setPriceLXL(Number(e.target.value))}
-                    className="w-full bg-transparent px-2 py-2 font-black focus:outline-none text-base"
+                    className="w-full bg-white text-zinc-950 px-2 py-2 font-black focus:outline-none text-base"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-black text-zinc-700">Size 2XL</label>
-                <div className="mt-1 flex items-center rounded-lg border-2 border-zinc-300 bg-white px-3">
-                  <span className="text-sm font-black text-zinc-500">₹</span>
+                <label className="block text-xs font-black text-zinc-800">Size 2XL</label>
+                <div className="mt-1 flex items-center rounded-xl border-2 border-zinc-400 bg-white px-3 shadow-sm">
+                  <span className="text-sm font-black text-zinc-900">₹</span>
                   <input
                     type="number"
                     value={priceXXL}
                     onChange={(e) => setPriceXXL(Number(e.target.value))}
-                    className="w-full bg-transparent px-2 py-2 font-black focus:outline-none text-base"
+                    className="w-full bg-white text-zinc-950 px-2 py-2 font-black focus:outline-none text-base"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-black text-zinc-700">Original MRP (Crossed Out)</label>
-                <div className="mt-1 flex items-center rounded-lg border-2 border-zinc-300 bg-white px-3">
-                  <span className="text-sm font-black text-zinc-500">₹</span>
+                <label className="block text-xs font-black text-zinc-800">Original MRP (Crossed Out)</label>
+                <div className="mt-1 flex items-center rounded-xl border-2 border-zinc-400 bg-white px-3 shadow-sm">
+                  <span className="text-sm font-black text-zinc-900">₹</span>
                   <input
                     type="number"
                     value={mrp}
                     onChange={(e) => setMrp(Number(e.target.value))}
-                    className="w-full bg-transparent px-2 py-2 font-black text-zinc-400 line-through focus:outline-none text-base"
+                    className="w-full bg-white text-zinc-500 line-through px-2 py-2 font-black focus:outline-none text-base"
                   />
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="flex justify-between">
-            <Button variant="outline" onClick={() => setStep(1)} className="flex items-center gap-2 font-bold border-zinc-300">
-              <ArrowLeft className="h-4 w-4" /> Back
-            </Button>
-            <Button onClick={() => setStep(3)} className="bg-amber-400 font-black text-black hover:bg-amber-300 px-8 shadow-md">
-              Review & Customize Colours ({productGroups.length} Products)
-            </Button>
+          <div className="flex justify-between items-center pt-3 border-t border-zinc-200">
+            <button
+              type="button"
+              onClick={() => setStep(1)}
+              className="inline-flex items-center gap-2 rounded-xl bg-zinc-200 border-2 border-zinc-300 px-6 py-2.5 text-sm font-black text-zinc-900 hover:bg-zinc-300 transition"
+            >
+              <ArrowLeft className="h-4 w-4 stroke-[3]" /> Back
+            </button>
+            <button
+              type="button"
+              onClick={() => setStep(3)}
+              className="inline-flex items-center gap-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-black font-black px-8 py-2.5 text-sm shadow-md transition"
+            >
+              Review & Customize Colours ({productGroups.length} Products) →
+            </button>
           </div>
         </div>
       )}
@@ -548,9 +584,9 @@ export function ProductUploadWizard() {
       {/* STEP 3: Review & Custom Colour / Size Name */}
       {step === 3 && (
         <div className="space-y-6">
-          <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4 text-sm">
-            <h4 className="font-black text-zinc-900">Product Title & Colour Review</h4>
-            <p className="text-xs text-zinc-600 mt-1">
+          <div className="rounded-2xl border-2 border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-950">
+            <h4 className="font-black text-zinc-950 text-base">Product Title & Colour Review</h4>
+            <p className="text-xs font-semibold text-zinc-600 mt-1">
               Check the photos for each product below. Select or type the exact colour so customers can easily see the colour in the product name and filters!
             </p>
           </div>
@@ -571,7 +607,7 @@ export function ProductUploadWizard() {
                     {/* Photos Preview */}
                     <div className="flex gap-1.5 flex-shrink-0">
                       {group.map((file, fIdx) => (
-                        <div key={fIdx} className="relative h-16 w-16 rounded-xl overflow-hidden border border-zinc-300 shadow-sm">
+                        <div key={fIdx} className="relative h-16 w-16 rounded-xl overflow-hidden border-2 border-zinc-300 shadow-sm">
                           <img
                             src={URL.createObjectURL(file)}
                             alt={file.name}
@@ -589,7 +625,7 @@ export function ProductUploadWizard() {
                     {/* Title & Colour Controls */}
                     <div className="flex-1 min-w-0 space-y-2">
                       <div className="flex items-center gap-2">
-                        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-zinc-900 text-xs font-black text-white">
+                        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-zinc-950 text-xs font-black text-white flex-shrink-0">
                           {idx + 1}
                         </span>
                         <input
@@ -598,14 +634,14 @@ export function ProductUploadWizard() {
                           onChange={(e) =>
                             setCustomTitles((prev) => ({ ...prev, [idx]: e.target.value }))
                           }
-                          className="flex-1 rounded-lg border-2 border-zinc-300 px-3 py-1.5 text-sm font-black text-zinc-900 focus:border-amber-400 focus:outline-none"
+                          className="flex-1 rounded-xl border-2 border-zinc-300 bg-white px-3 py-1.5 text-sm font-black text-zinc-950 focus:border-amber-400 focus:outline-none shadow-sm"
                           placeholder="Product Title"
                         />
                       </div>
 
                       {/* Colour Picker */}
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-xs font-bold text-zinc-500">Colour:</span>
+                        <span className="text-xs font-bold text-zinc-700">Colour:</span>
                         <select
                           value={currentColour}
                           onChange={(e) => {
@@ -618,10 +654,10 @@ export function ProductUploadWizard() {
                               [idx]: `${aud} ${newClr} ${fit} Graphic T-Shirt #${idx + 1}`,
                             }));
                           }}
-                          className="rounded-lg border border-zinc-300 bg-white px-2 py-1 text-xs font-bold text-zinc-900"
+                          className="rounded-xl border-2 border-zinc-300 bg-white px-3 py-1.5 text-xs font-black text-zinc-950 focus:border-amber-400 focus:outline-none shadow-sm"
                         >
                           {POPULAR_COLOURS.map((clr) => (
-                            <option key={clr} value={clr}>
+                            <option key={clr} value={clr} className="text-zinc-950 font-bold bg-white">
                               {clr}
                             </option>
                           ))}
@@ -641,13 +677,13 @@ export function ProductUploadWizard() {
                             }));
                           }}
                           placeholder="or type custom colour..."
-                          className="w-40 rounded-lg border border-zinc-300 px-2 py-1 text-xs font-medium"
+                          className="w-48 rounded-xl border-2 border-zinc-300 bg-white px-3 py-1.5 text-xs font-bold text-zinc-950 placeholder:text-zinc-400 focus:border-amber-400 focus:outline-none shadow-sm"
                         />
                       </div>
 
                       {/* Sizes for this specific product */}
                       <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                        <span className="text-xs font-bold text-zinc-500">Sizes Available:</span>
+                        <span className="text-xs font-bold text-zinc-700">Sizes Available:</span>
                         {ALL_SIZES.map((size) => {
                           const isAvailable = currentSizes.includes(size);
                           return (
@@ -655,17 +691,17 @@ export function ProductUploadWizard() {
                               key={size}
                               type="button"
                               onClick={() => toggleProductSize(idx, size)}
-                              className={`rounded-md px-2.5 py-1 text-xs font-black transition ${
+                              className={`rounded-lg px-3 py-1 text-xs font-black transition ${
                                 isAvailable
-                                  ? "bg-zinc-900 text-white shadow-sm"
-                                  : "bg-zinc-100 text-zinc-400 line-through"
+                                  ? "bg-zinc-950 text-white shadow-sm"
+                                  : "bg-zinc-100 text-zinc-500 border border-zinc-300 line-through font-bold"
                               }`}
                             >
                               {size}
                             </button>
                           );
                         })}
-                        <span className="text-[11px] font-mono text-zinc-400 ml-2">
+                        <span className="text-[11px] font-mono font-bold text-zinc-500 ml-2">
                           SKU: {skuPrefix}-[SIZE]
                         </span>
                       </div>
@@ -676,26 +712,34 @@ export function ProductUploadWizard() {
             })}
           </div>
 
-          <div className="flex justify-between">
-            <Button variant="outline" onClick={() => setStep(2)} className="flex items-center gap-2 font-bold border-zinc-300">
-              <ArrowLeft className="h-4 w-4" /> Back
-            </Button>
-            <Button onClick={handleStartUpload} className="bg-amber-400 font-black text-black hover:bg-amber-300 px-8 min-h-12 shadow-md flex items-center gap-2">
-              <Upload className="h-4 w-4" />
+          <div className="flex justify-between items-center pt-3 border-t border-zinc-200">
+            <button
+              type="button"
+              onClick={() => setStep(2)}
+              className="inline-flex items-center gap-2 rounded-xl bg-zinc-200 border-2 border-zinc-300 px-6 py-2.5 text-sm font-black text-zinc-900 hover:bg-zinc-300 transition"
+            >
+              <ArrowLeft className="h-4 w-4 stroke-[3]" /> Back
+            </button>
+            <button
+              type="button"
+              onClick={handleStartUpload}
+              className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black px-8 py-3 text-sm shadow-md transition"
+            >
+              <Upload className="h-4 w-4 stroke-[3]" />
               Upload & Publish All {productGroups.length} Products
-            </Button>
+            </button>
           </div>
         </div>
       )}
 
       {/* STEP 4: Uploading / Complete */}
       {step === 4 && (
-        <div className="py-8 text-center space-y-6">
+        <div className="py-8 text-center space-y-6 text-zinc-950">
           {isUploading && (
             <div className="space-y-4">
-              <Loader2 className="mx-auto h-12 w-12 animate-spin text-ink" />
-              <h3 className="text-xl font-bold">Uploading {files.length} Photos...</h3>
-              <p className="text-sm text-paper/60">
+              <Loader2 className="mx-auto h-12 w-12 animate-spin text-amber-500" />
+              <h3 className="text-xl font-black text-zinc-950">Uploading {files.length} Photos...</h3>
+              <p className="text-sm font-semibold text-zinc-600">
                 Photos are being uploaded to Cloudinary and products are being created with size-based pricing.
                 Please wait a moment.
               </p>
@@ -703,44 +747,54 @@ export function ProductUploadWizard() {
           )}
 
           {uploadError && (
-            <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-5 text-left text-red-600">
-              <div className="flex items-center gap-2 font-bold">
-                <AlertCircle className="h-5 w-5" />
+            <div className="rounded-2xl border-2 border-red-400 bg-red-50 p-5 text-left text-red-900">
+              <div className="flex items-center gap-2 font-black text-red-950">
+                <AlertCircle className="h-5 w-5 text-red-600" />
                 Upload Failed
               </div>
-              <p className="mt-2 text-sm">{uploadError}</p>
+              <p className="mt-2 text-sm font-medium">{uploadError}</p>
               <div className="mt-4 flex gap-3">
-                <Button variant="outline" onClick={() => setStep(3)}>
+                <button
+                  type="button"
+                  onClick={() => setStep(3)}
+                  className="rounded-xl border-2 border-zinc-300 bg-white px-4 py-2 text-xs font-bold text-zinc-900 hover:bg-zinc-100"
+                >
                   Go Back
-                </Button>
-                <Button onClick={handleStartUpload}>Try Again</Button>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleStartUpload}
+                  className="rounded-xl bg-amber-400 hover:bg-amber-300 px-5 py-2 text-xs font-black text-black shadow"
+                >
+                  Try Again
+                </button>
               </div>
             </div>
           )}
 
           {uploadResult && (
-            <div className="rounded-lg border border-green-500/30 bg-green-500/10 p-6 text-center space-y-4">
-              <CheckCircle2 className="mx-auto h-14 w-14 text-green-600" />
-              <h3 className="text-2xl font-bold text-green-800">Products Successfully Created!</h3>
-              <div className="mx-auto max-w-sm grid grid-cols-3 gap-3 rounded-lg bg-paper p-3 text-ink">
+            <div className="rounded-2xl border-2 border-emerald-300 bg-emerald-50/80 p-6 text-center space-y-4">
+              <CheckCircle2 className="mx-auto h-14 w-14 text-emerald-600" />
+              <h3 className="text-2xl font-black text-emerald-950">Products Successfully Created!</h3>
+              <div className="mx-auto max-w-sm grid grid-cols-3 gap-3 rounded-xl bg-white border-2 border-zinc-200 p-4 shadow-sm text-zinc-950">
                 <div>
-                  <span className="text-xs text-paper/60">Products</span>
-                  <p className="text-xl font-black">{uploadResult.productsCreated}</p>
+                  <span className="text-xs font-bold text-zinc-500 uppercase">Products</span>
+                  <p className="text-2xl font-black text-black">{uploadResult.productsCreated}</p>
                 </div>
                 <div>
-                  <span className="text-xs text-paper/60">Variants</span>
-                  <p className="text-xl font-black">{uploadResult.variantsCreated}</p>
+                  <span className="text-xs font-bold text-zinc-500 uppercase">Variants</span>
+                  <p className="text-2xl font-black text-black">{uploadResult.variantsCreated}</p>
                 </div>
                 <div>
-                  <span className="text-xs text-paper/60">Photos</span>
-                  <p className="text-xl font-black">{uploadResult.imagesUploaded}</p>
+                  <span className="text-xs font-bold text-zinc-500 uppercase">Photos</span>
+                  <p className="text-2xl font-black text-black">{uploadResult.imagesUploaded}</p>
                 </div>
               </div>
 
               {uploadResult.errors.length > 0 && (
-                <div className="mt-3 text-left text-xs text-amber-700">
-                  <span className="font-semibold">Notices:</span>
-                  <ul className="list-disc pl-4">
+                <div className="mt-3 text-left text-xs text-amber-900 bg-amber-50 p-3 rounded-xl border border-amber-300">
+                  <span className="font-bold">Notices:</span>
+                  <ul className="list-disc pl-4 mt-1">
                     {uploadResult.errors.map((err, i) => (
                       <li key={i}>{err}</li>
                     ))}
@@ -749,12 +803,19 @@ export function ProductUploadWizard() {
               )}
 
               <div className="pt-4 flex justify-center gap-4">
-                <Button asChild>
-                  <Link href="/admin/products">View All Products</Link>
-                </Button>
-                <Button variant="outline" onClick={resetWizard}>
+                <Link
+                  href="/admin/products"
+                  className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-amber-400 hover:bg-amber-300 px-8 py-2.5 text-sm font-black text-black shadow-md transition"
+                >
+                  View All Products
+                </Link>
+                <button
+                  type="button"
+                  onClick={resetWizard}
+                  className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 px-6 py-2.5 text-sm font-bold text-white shadow-md transition"
+                >
                   Upload Another Batch
-                </Button>
+                </button>
               </div>
             </div>
           )}
