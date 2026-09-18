@@ -14,7 +14,7 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/auth/auth-provider";
 
 // Uploads go directly to Render to bypass serverless body limits
@@ -53,6 +53,28 @@ export function ProductUploadWizard() {
   // Selected files
   const [files, setFiles] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Existing product count to number products sequentially (#4, #5, etc.)
+  const [existingProductCount, setExistingProductCount] = useState<number>(0);
+
+  useEffect(() => {
+    async function fetchTotal() {
+      try {
+        const res = await fetch(`${DIRECT_API_URL}/catalog/products?limit=1`);
+        const json = await res.json();
+        if (json?.success && typeof json?.data?.total === "number") {
+          setExistingProductCount(json.data.total);
+        }
+      } catch {
+        // Fallback: 0
+      }
+    }
+    fetchTotal();
+  }, []);
+
+  function getProductNumber(index: number): number {
+    return existingProductCount + index + 1;
+  }
 
   // Settings
   const [audience, setAudience] = useState<"men" | "women" | "unisex">("men");
@@ -128,7 +150,7 @@ export function ProductUploadWizard() {
     const clr = customColours[index] || defaultColour;
     const aud = audience === "men" ? "Men's" : audience === "women" ? "Women's" : "";
     const fit = productType === "oversized" ? "Oversized" : "Regular";
-    return `${aud} ${clr} ${fit} Graphic T-Shirt #${index + 1}`.trim();
+    return `${aud} ${clr} ${fit} Graphic T-Shirt #${getProductNumber(index)}`.trim();
   }
 
   function getProductSizes(index: number): string[] {
@@ -596,7 +618,8 @@ export function ProductUploadWizard() {
               const currentColour = customColours[idx] || defaultColour;
               const currentTitle = getProductTitle(idx);
               const currentSizes = getProductSizes(idx);
-              const skuPrefix = `TH-${audience.toUpperCase().slice(0, 3)}-${productType.toUpperCase().slice(0, 3)}-${String(idx + 1).padStart(2, "0")}`;
+              const productNum = getProductNumber(idx);
+              const skuPrefix = `TH-${audience.toUpperCase().slice(0, 3)}-${productType.toUpperCase().slice(0, 3)}-${String(productNum).padStart(3, "0")}`;
 
               return (
                 <div
@@ -626,7 +649,7 @@ export function ProductUploadWizard() {
                     <div className="flex-1 min-w-0 space-y-2">
                       <div className="flex items-center gap-2">
                         <span className="flex h-6 w-6 items-center justify-center rounded-full bg-zinc-950 text-xs font-black text-white flex-shrink-0">
-                          {idx + 1}
+                          {productNum}
                         </span>
                         <input
                           type="text"
@@ -651,7 +674,7 @@ export function ProductUploadWizard() {
                             const fit = productType === "oversized" ? "Oversized" : "Regular";
                             setCustomTitles((prev) => ({
                               ...prev,
-                              [idx]: `${aud} ${newClr} ${fit} Graphic T-Shirt #${idx + 1}`,
+                              [idx]: `${aud} ${newClr} ${fit} Graphic T-Shirt #${productNum}`,
                             }));
                           }}
                           className="rounded-xl border-2 border-zinc-300 bg-white px-3 py-1.5 text-xs font-black text-zinc-950 focus:border-amber-400 focus:outline-none shadow-sm"
@@ -673,7 +696,7 @@ export function ProductUploadWizard() {
                             const fit = productType === "oversized" ? "Oversized" : "Regular";
                             setCustomTitles((prev) => ({
                               ...prev,
-                              [idx]: `${aud} ${newClr} ${fit} Graphic T-Shirt #${idx + 1}`,
+                              [idx]: `${aud} ${newClr} ${fit} Graphic T-Shirt #${productNum}`,
                             }));
                           }}
                           placeholder="or type custom colour..."

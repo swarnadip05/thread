@@ -1343,15 +1343,35 @@ export class ProductImportService {
     const audiencePrefix =
       audience === "men" ? "Men's" : audience === "women" ? "Women's" : "";
 
+    const existingTotal = await ProductModel.countDocuments();
+
     for (let groupIndex = 0; groupIndex < groups.length; groupIndex++) {
       const group = groups[groupIndex]!;
-      const productNumber = groupIndex + 1;
+      const productNumber = existingTotal + groupIndex + 1;
       const custom = productCustomizations?.[groupIndex];
 
       const productColour = custom?.colour?.trim() || "Sage Green";
-      const title = custom?.title?.trim() ||
+      let title = custom?.title?.trim() ||
         `${audiencePrefix} ${productColour} ${typeLabel} Graphic T-Shirt #${productNumber}`.trim();
-      const slug = generateSlug(`${title}-${productNumber}`);
+
+      // If a product with this exact title already exists in the database, adjust numbering
+      const titleExists = await ProductModel.exists({ title });
+      if (titleExists) {
+        if (/#\d+$/.test(title)) {
+          title = title.replace(/#\d+$/, `#${productNumber}`);
+        } else {
+          title = `${title} #${productNumber}`;
+        }
+      }
+
+      // Generate a collision-proof slug so it NEVER overwrites an existing product
+      let baseSlug = generateSlug(title);
+      let slug = baseSlug;
+      let collisionAttempts = 0;
+      while (await ProductModel.exists({ slug })) {
+        collisionAttempts++;
+        slug = `${baseSlug}-${productNumber}${collisionAttempts > 1 ? `-${collisionAttempts}` : ""}`;
+      }
 
       // Upload images to Cloudinary
       const media: ProductMedia[] = [];
@@ -1423,11 +1443,16 @@ export class ProductImportService {
           : ["S", "M", "L", "XL", "2XL"];
 
         const productId = productDoc._id as mongoose.Types.ObjectId;
-        const skuPrefix = `TH-${audienceLabel.toUpperCase().slice(0, 3)}-${typeLabel.toUpperCase().slice(0, 3)}-${String(productNumber).padStart(2, "0")}`;
+        const skuPrefix = `TH-${audienceLabel.toUpperCase().slice(0, 3)}-${typeLabel.toUpperCase().slice(0, 3)}-${String(productNumber).padStart(3, "0")}`;
 
         for (const size of sizesToCreate) {
           const salePricePaise = priceMap[size] || priceLXLPaise;
-          const sku = `${skuPrefix}-${size}`.toUpperCase();
+          let sku = `${skuPrefix}-${size}`.toUpperCase();
+          let skuCollision = 0;
+          while (await ProductVariantModel.exists({ sku })) {
+            skuCollision++;
+            sku = `${skuPrefix}-${size}-${Date.now().toString().slice(-4)}${skuCollision > 1 ? `-${skuCollision}` : ""}`.toUpperCase();
+          }
 
           await ProductVariantModel.findOneAndUpdate(
             { productId, size },
