@@ -484,6 +484,80 @@ export function createCatalogueRouter(
     });
   });
 
+  // ── Delete single product ──────────────────────────────────────────────────
+  router.delete("/admin/products/:id", catalogueRoles, async (request, response) => {
+    const id = parameter(request, "id");
+    await Promise.all([
+      ProductModel.deleteOne({ _id: id }),
+      ProductVariantModel.deleteMany({ productId: id }),
+    ]);
+    response.json({ success: true, data: { deleted: true } });
+  });
+
+  // ── Bulk delete products ───────────────────────────────────────────────────
+  router.post("/admin/products/bulk-delete", catalogueRoles, async (request, response) => {
+    const ids = ((request.body?.productIds || []) as string[]).filter(Boolean);
+    if (!ids.length) {
+      throw new HttpError(400, "NO_IDS", "No product IDs provided for deletion.");
+    }
+    const [products, variants] = await Promise.all([
+      ProductModel.deleteMany({ _id: { $in: ids } }),
+      ProductVariantModel.deleteMany({ productId: { $in: ids } }),
+    ]);
+    response.json({
+      success: true,
+      data: { deletedProducts: products.deletedCount, deletedVariants: variants.deletedCount },
+    });
+  });
+
+  // ── Quick generate / update S-2XL variants for a product ───────────────────
+  router.post("/admin/products/:id/quick-variants", catalogueRoles, async (request, response) => {
+    const productId = parameter(request, "id");
+    const body = request.body as Record<string, unknown>;
+    const priceSMPaise = Math.round((Number(body.priceSM) || 549) * 100);
+    const priceLXLPaise = Math.round((Number(body.priceLXL) || 599) * 100);
+    const priceXXLPaise = Math.round((Number(body.priceXXL) || 649) * 100);
+    const mrpPaise = Math.round((Number(body.mrp) || 899) * 100);
+    const stockOnHand = Math.max(1, Number(body.stock) || 25);
+
+    const sizes = [
+      { size: "S", price: priceSMPaise },
+      { size: "M", price: priceSMPaise },
+      { size: "L", price: priceLXLPaise },
+      { size: "XL", price: priceLXLPaise },
+      { size: "2XL", price: priceXXLPaise },
+    ];
+
+    for (const item of sizes) {
+      const discountPct = mrpPaise > 0 ? Math.round(((mrpPaise - item.price) / mrpPaise) * 100) : 0;
+      await ProductVariantModel.findOneAndUpdate(
+        { productId, size: item.size, colour: "Standard" },
+        {
+          $set: {
+            productId,
+            size: item.size,
+            colour: "Standard",
+            colourHex: "#000000",
+            salePricePaise: item.price,
+            mrpPaise,
+            discountPercent: discountPct,
+            stockOnHand,
+            status: "active",
+          },
+          $setOnInsert: { createdAt: new Date() },
+        },
+        { upsert: true },
+      );
+    }
+
+    await ProductModel.updateOne(
+      { _id: productId },
+      { $set: { status: "active" } },
+    );
+
+    response.json({ success: true, data: { updated: true } });
+  });
+
   router.post(
     "/admin/products/bulk",
     catalogueRoles,

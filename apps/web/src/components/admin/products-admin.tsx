@@ -1,10 +1,21 @@
-"use client";
+﻿"use client";
 
 import type { AdminProductDto, ProductStatus } from "@thread/types";
-import { Button, Price, Skeleton } from "@thread/ui";
+import { Badge, Button, Price, Skeleton } from "@thread/ui";
 import Link from "next/link";
-import { Trash2, Upload } from "lucide-react";
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import {
+  AlertCircle,
+  CheckCircle2,
+  CheckSquare,
+  ExternalLink,
+  Image as ImageIcon,
+  Pencil,
+  Plus,
+  Square,
+  Trash2,
+  Upload,
+} from "lucide-react";
+import React, { useCallback, useEffect, useState, type FormEvent } from "react";
 import { apiRequest } from "@/auth/auth-client";
 import { useAuth } from "@/auth/auth-provider";
 import { ProductImportModal } from "./product-import-modal";
@@ -25,16 +36,25 @@ export function ProductsAdmin() {
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [importOpen, setImportOpen] = useState(false);
+
+  // Bulk selection
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
   const load = useCallback(async () => {
     if (!accessToken) return;
     setLoading(true);
     try {
-      setResult(
-        await apiRequest<ProductPage>(
-          `/admin/products?${new URLSearchParams({ page: String(page), limit: "25", search, status: filter })}`,
-          accessToken,
-        ),
+      const data = await apiRequest<ProductPage>(
+        `/admin/products?${new URLSearchParams({
+          page: String(page),
+          limit: "25",
+          search,
+          status: filter,
+        })}`,
+        accessToken,
       );
+      setResult(data);
+      setSelectedIds(new Set());
       setError("");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Products could not be loaded.");
@@ -42,11 +62,98 @@ export function ProductsAdmin() {
       setLoading(false);
     }
   }, [accessToken, page, search, filter]);
+
   useEffect(() => {
     const timer = window.setTimeout(() => void load(), 0);
     return () => window.clearTimeout(timer);
   }, [load]);
 
+  // Toggle selection
+  function toggleSelectAll() {
+    if (selectedIds.size === result.items.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(result.items.map((p) => p.id)));
+    }
+  }
+
+  function toggleSelect(id: string) {
+    const next = new Set(selectedIds);
+    if (next.has(id)) {
+      next.delete(id);
+    } else {
+      next.add(id);
+    }
+    setSelectedIds(next);
+  }
+
+  // Delete single product
+  async function deleteSingleProduct(id: string, title: string) {
+    if (!accessToken) return;
+    if (!window.confirm(`Permanently delete "${title}" and all its size variants?`)) return;
+
+    setBusy(id);
+    setError("");
+    try {
+      await apiRequest(`/admin/products/${id}`, accessToken, { method: "DELETE" });
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete product.");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  // Delete selected products
+  async function deleteSelectedProducts() {
+    if (!accessToken || selectedIds.size === 0) return;
+    if (!window.confirm(`Delete all ${selectedIds.size} selected products? This cannot be undone.`)) return;
+
+    setLoading(true);
+    setError("");
+    try {
+      const res = await apiRequest<{ deletedProducts: number; deletedVariants: number }>(
+        "/admin/products/bulk-delete",
+        accessToken,
+        {
+          method: "POST",
+          body: JSON.stringify({ productIds: Array.from(selectedIds) }),
+        },
+      );
+      alert(`Deleted ${res.deletedProducts} products and ${res.deletedVariants} variants.`);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete selected products.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Quick generate S-2XL variants
+  async function quickAddVariants(productId: string) {
+    if (!accessToken) return;
+    setBusy(productId);
+    setError("");
+    try {
+      await apiRequest(`/admin/products/${productId}/quick-variants`, accessToken, {
+        method: "POST",
+        body: JSON.stringify({
+          priceSM: 549,
+          priceLXL: 599,
+          priceXXL: 649,
+          mrp: 899,
+          stock: 25,
+        }),
+      });
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to add variants.");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  // Clear products (wrong products / all)
   async function clearProducts(onlyWithoutImages: boolean) {
     if (!accessToken) return;
     const confirmMsg = onlyWithoutImages
@@ -75,15 +182,9 @@ export function ProductsAdmin() {
     }
   }
 
+  // Change product status
   async function changeStatus(product: AdminProductDto, status: ProductStatus) {
-    if (
-      !accessToken ||
-      (status === "archived" &&
-        !window.confirm(
-          `Archive “${product.title}”? It will leave the storefront; order history is preserved.`,
-        ))
-    )
-      return;
+    if (!accessToken) return;
     setBusy(product.id);
     setError("");
     try {
@@ -98,28 +199,67 @@ export function ProductsAdmin() {
       setBusy("");
     }
   }
+
   function searchProducts(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setPage(1);
     setSearch(String(new FormData(event.currentTarget).get("search") ?? ""));
   }
 
+  // Helper to sort sizes standard order: S, M, L, XL, 2XL
+  const sizeOrder = ["S", "M", "L", "XL", "2XL", "XXL", "3XL", "FREE SIZE"];
+  function sortVariants(variants: readonly any[]) {
+    return [...variants].sort((a, b) => {
+      const aIdx = sizeOrder.indexOf(a.size?.toUpperCase());
+      const bIdx = sizeOrder.indexOf(b.size?.toUpperCase());
+      if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
+      if (aIdx !== -1) return -1;
+      if (bIdx !== -1) return 1;
+      return (a.size || "").localeCompare(b.size || "");
+    });
+  }
+
   return (
-    <div>
+    <div className="space-y-6">
+      {/* ── Top Header with High-Contrast Text & Buttons ── */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-semibold">Products</h1>
-          <p className="mt-2 text-sm text-paper/60">
-            {result.total} products · Manage your THREAD catalogue.
+          <h1 className="text-3xl font-black tracking-tight text-white">Products</h1>
+          <p className="mt-1 text-sm font-medium text-zinc-300">
+            {result.total} products listed · Manage inventory, size variants & pricing.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <Button
+            asChild
+            className="flex items-center gap-2 bg-amber-400 font-bold text-black shadow-md hover:bg-amber-300"
+          >
+            <Link href="/admin/products/upload">
+              📁 Upload Photos (New)
+            </Link>
+          </Button>
+          <Button
+            className="flex items-center gap-2 bg-zinc-800 text-white border border-zinc-700 hover:bg-zinc-700 font-semibold"
+            onClick={() => setImportOpen(true)}
             variant="outline"
-            className="flex items-center gap-2 border-red-500/40 text-red-500 hover:bg-red-500/10"
+          >
+            <Upload className="h-4 w-4" />
+            Bulk Import (ZIP / Excel)
+          </Button>
+          <Button
+            asChild
+            className="bg-white font-bold text-black hover:bg-zinc-200"
+          >
+            <Link href="/admin/products/new">
+              <Plus className="h-4 w-4 mr-1" /> Add Product
+            </Link>
+          </Button>
+          <Button
+            variant="outline"
+            className="flex items-center gap-2 border-red-500/60 bg-red-950/70 text-red-300 hover:bg-red-900/80 font-semibold"
             onClick={() => {
               const choice = window.prompt(
-                "To delete products without images, type 'no-images'.\nTo delete ALL products, type 'all'.",
+                "Type 'no-images' to delete products without pictures,\nor type 'all' to delete ALL products:",
                 "no-images",
               );
               if (choice === "no-images") {
@@ -133,145 +273,346 @@ export function ProductsAdmin() {
             <Trash2 className="h-4 w-4" />
             Delete Wrong Products
           </Button>
-          <Button asChild variant="outline" className="flex items-center gap-2 bg-ink/10 font-semibold">
-            <Link href="/admin/products/upload">
-              📁 Upload Photos (New)
-            </Link>
-          </Button>
-          <Button
-            className="flex items-center gap-2"
-            onClick={() => setImportOpen(true)}
-            variant="outline"
-          >
-            <Upload className="h-4 w-4" />
-            Bulk Import (ZIP / Excel)
-          </Button>
-          <Button asChild>
-            <Link href="/admin/products/new">Add product</Link>
-          </Button>
         </div>
       </div>
-      <form className="mt-6 flex flex-wrap gap-3" onSubmit={searchProducts}>
+
+      {/* ── High-Contrast Search & Filter Bar ── */}
+      <form
+        className="flex flex-wrap items-center gap-3 rounded-xl bg-[#1d1d1d] p-3 border border-zinc-800"
+        onSubmit={searchProducts}
+      >
         <input
           aria-label="Search products"
-          className="min-h-11 rounded-md bg-paper px-3 text-ink"
+          className="min-h-11 flex-1 min-w-[240px] rounded-lg bg-white px-4 font-semibold text-black placeholder:text-zinc-500 border-2 border-zinc-300 focus:border-amber-400 focus:outline-none"
           name="search"
-          placeholder="Search product name or SKU"
+          placeholder="🔍 Search product name, slug, or SKU..."
+          defaultValue={search}
         />
         <select
           aria-label="Filter status"
-          className="min-h-11 rounded-md bg-paper px-3 text-ink"
+          className="min-h-11 rounded-lg bg-white px-3 font-semibold text-black border-2 border-zinc-300 focus:border-amber-400 focus:outline-none"
           value={filter}
           onChange={(event) => {
             setFilter(event.target.value);
             setPage(1);
           }}
         >
-          <option value="">All statuses</option>
-          {["draft", "active", "inactive", "archived"].map((status) => (
-            <option key={status}>{status}</option>
-          ))}
+          <option value="">All statuses (active, draft, archived)</option>
+          <option value="active">Active only</option>
+          <option value="draft">Draft only</option>
+          <option value="inactive">Inactive only</option>
+          <option value="archived">Archived only</option>
         </select>
-        <Button type="submit">Search</Button>
+        <Button
+          type="submit"
+          className="min-h-11 bg-amber-400 px-6 font-black text-black hover:bg-amber-300 shadow"
+        >
+          Search
+        </Button>
       </form>
+
+      {/* ── Error Banner ── */}
       {error ? (
-        <div className="mt-5 rounded-md bg-paper p-4 text-error" role="alert">
+        <div className="rounded-lg border border-red-500/40 bg-red-950/60 p-4 text-red-200" role="alert">
           {error}{" "}
-          <button className="underline" onClick={() => void load()} type="button">
+          <button className="font-bold underline ml-2 text-white" onClick={() => void load()} type="button">
             Retry
           </button>
         </div>
       ) : null}
-      <section className="mt-6 rounded-lg bg-paper p-5 text-ink">
+
+      {/* ── Bulk Actions Floating / Sticky Bar ── */}
+      {selectedIds.size > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-amber-400/40 bg-amber-400/10 p-4 text-amber-200">
+          <div className="flex items-center gap-2 font-bold text-white">
+            <CheckCircle2 className="h-5 w-5 text-amber-400" />
+            {selectedIds.size} product{selectedIds.size > 1 ? "s" : ""} selected
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="bg-zinc-900 border-zinc-700 text-white hover:bg-zinc-800"
+              onClick={() => setSelectedIds(new Set())}
+            >
+              Deselect All
+            </Button>
+            <Button
+              size="sm"
+              className="bg-red-600 font-bold text-white hover:bg-red-700"
+              onClick={deleteSelectedProducts}
+            >
+              <Trash2 className="h-4 w-4 mr-1" /> Delete Selected ({selectedIds.size})
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Product List Section ── */}
+      <section className="rounded-2xl bg-white p-6 text-zinc-950 shadow-xl border border-zinc-200">
+        {/* Table header with Select All */}
+        <div className="flex items-center justify-between border-b border-zinc-200 pb-3 text-xs font-bold text-zinc-500 uppercase tracking-wider">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={toggleSelectAll}
+              className="flex items-center gap-2 text-zinc-700 hover:text-black"
+            >
+              {selectedIds.size > 0 && selectedIds.size === result.items.length ? (
+                <CheckSquare className="h-5 w-5 text-amber-500" />
+              ) : (
+                <Square className="h-5 w-5 text-zinc-400" />
+              )}
+              <span>Select All ({result.items.length})</span>
+            </button>
+          </div>
+          <span>Showing {result.items.length} of {result.total}</span>
+        </div>
+
         {loading ? (
-          <Skeleton className="h-40 w-full" />
+          <div className="py-12 space-y-4">
+            <Skeleton className="h-24 w-full rounded-xl" />
+            <Skeleton className="h-24 w-full rounded-xl" />
+            <Skeleton className="h-24 w-full rounded-xl" />
+          </div>
         ) : result.items.length ? (
-          <div className="divide-y divide-ink/10">
-            {result.items.map((product) => (
-              <article className="grid gap-4 py-5 lg:grid-cols-[1fr_auto]" key={product.id}>
-                <div>
-                  <Link
-                    className="font-semibold underline-offset-4 hover:underline"
-                    href={`/admin/products/${product.id}/edit`}
-                  >
-                    {product.title}
-                  </Link>
-                  <p className="my-2 text-sm text-muted">
-                    {product.status} · {product.variants.length} variants ·{" "}
-                    {product.available ? "In stock" : "Out of stock"}
-                  </p>
-                  <Price amount={product.minSalePricePaise} />
-                </div>
-                <div className="flex flex-wrap items-center gap-3 text-sm">
-                  <Link
-                    className="min-h-11 content-center underline"
-                    href={`/admin/products/${product.id}/edit`}
-                  >
-                    Edit
-                  </Link>
-                  {product.status === "active" ? (
-                    <Link
-                      className="min-h-11 content-center underline"
-                      href={`/shop/${product.slug}`}
-                    >
-                      View product
-                    </Link>
-                  ) : null}
-                  <button
-                    className="min-h-11 underline"
-                    disabled={busy === product.id}
-                    onClick={() =>
-                      void changeStatus(
-                        product,
-                        product.status === "active" ? "inactive" : "active",
-                      )
-                    }
-                    type="button"
-                  >
-                    {product.status === "active" ? "Unpublish" : "Publish"}
-                  </button>
-                  {product.status !== "archived" ? (
-                    <button
-                      className="min-h-11 text-error underline"
-                      disabled={busy === product.id}
-                      onClick={() => void changeStatus(product, "archived")}
-                      type="button"
-                    >
-                      Archive
-                    </button>
-                  ) : null}
-                </div>
-              </article>
-            ))}
+          <div className="divide-y divide-zinc-200">
+            {result.items.map((product) => {
+              const sorted = sortVariants(product.variants || []);
+              const isSelected = selectedIds.has(product.id);
+              const imgUrl = product.primaryImage?.secureUrl || product.media?.[0]?.secureUrl;
+
+              return (
+                <article
+                  key={product.id}
+                  className={`py-5 transition-colors ${
+                    isSelected ? "bg-amber-50/50 -mx-6 px-6" : ""
+                  }`}
+                >
+                  <div className="grid gap-4 lg:grid-cols-[auto_auto_1fr_auto] items-start">
+                    {/* Checkbox */}
+                    <div className="pt-2">
+                      <button
+                        type="button"
+                        onClick={() => toggleSelect(product.id)}
+                        className="text-zinc-600 hover:text-black"
+                      >
+                        {isSelected ? (
+                          <CheckSquare className="h-5 w-5 text-amber-500" />
+                        ) : (
+                          <Square className="h-5 w-5 text-zinc-400" />
+                        )}
+                      </button>
+                    </div>
+
+                    {/* Product Thumbnail Image */}
+                    <div className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-xl border border-zinc-200 bg-zinc-100 shadow-sm relative group">
+                      {imgUrl ? (
+                        <img
+                          src={imgUrl}
+                          alt={product.title}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-full w-full flex-col items-center justify-center p-1 text-center text-[10px] font-bold text-zinc-400">
+                          <ImageIcon className="h-6 w-6 text-zinc-300 mb-0.5" />
+                          No Picture
+                        </div>
+                      )}
+                      {product.media && product.media.length > 1 && (
+                        <span className="absolute bottom-1 right-1 rounded bg-black/75 px-1.5 py-0.5 text-[9px] font-black text-white">
+                          {product.media.length}📷
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Product Details & Variants Grid */}
+                    <div className="min-w-0 space-y-2.5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Link
+                          href={`/admin/products/${product.id}/edit`}
+                          className="text-lg font-black text-zinc-900 hover:text-amber-600 transition truncate"
+                        >
+                          {product.title}
+                        </Link>
+
+                        {/* Status Badge */}
+                        <span
+                          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold ${
+                            product.status === "active"
+                              ? "bg-emerald-100 text-emerald-800"
+                              : product.status === "draft"
+                              ? "bg-sky-100 text-sky-800"
+                              : "bg-zinc-200 text-zinc-800"
+                          }`}
+                        >
+                          ● {product.status.toUpperCase()}
+                        </span>
+
+                        {/* Audience Badge */}
+                        <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-700 capitalize">
+                          {product.audience}
+                        </span>
+
+                        {product.fit && (
+                          <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-700">
+                            {product.fit}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Variants & Size Availability Section */}
+                      {sorted.length > 0 ? (
+                        <div className="space-y-1">
+                          <div className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">
+                            Available Sizes, Prices & Stock:
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {sorted.map((v, vIdx) => {
+                              const inStock = v.stockOnHand > 0 && v.status === "active";
+                              return (
+                                <div
+                                  key={v.id || vIdx}
+                                  className={`flex items-center gap-2 rounded-lg border px-3 py-1 text-xs font-medium ${
+                                    inStock
+                                      ? "border-emerald-300 bg-emerald-50/70 text-emerald-950"
+                                      : "border-rose-300 bg-rose-50/70 text-rose-900"
+                                  }`}
+                                >
+                                  <span className="font-black text-sm">{v.size}</span>
+                                  <span className="font-bold text-zinc-800">
+                                    ₹{Math.round((v.salePricePaise || 0) / 100)}
+                                  </span>
+                                  <span
+                                    className={`font-black text-[11px] ${
+                                      inStock ? "text-emerald-700" : "text-rose-600"
+                                    }`}
+                                  >
+                                    {inStock ? `✓ In Stock (${v.stockOnHand})` : "✕ Out of Stock"}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ) : (
+                        /* When 0 variants exist — prominent alert with 1-click fix */
+                        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border-2 border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
+                          <div className="flex items-center gap-2 font-bold">
+                            <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0" />
+                            <span>
+                              <strong>No size variants!</strong> Customer cannot purchase until sizes are added.
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            disabled={busy === product.id}
+                            onClick={() => void quickAddVariants(product.id)}
+                            className="rounded-lg bg-amber-600 px-3.5 py-1.5 font-black text-white hover:bg-amber-700 shadow-sm transition"
+                          >
+                            {busy === product.id ? "Adding..." : "⚡ Add S, M, L, XL, 2XL (₹549 - ₹649)"}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex flex-wrap items-center gap-2 lg:flex-col lg:items-end justify-end">
+                      <Button
+                        asChild
+                        size="sm"
+                        variant="outline"
+                        className="font-bold text-zinc-900 border-zinc-300 hover:bg-zinc-100"
+                      >
+                        <Link href={`/admin/products/${product.id}/edit`}>
+                          <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
+                        </Link>
+                      </Button>
+
+                      {product.status === "active" && (
+                        <Button
+                          asChild
+                          size="sm"
+                          variant="outline"
+                          className="font-semibold text-zinc-700 border-zinc-300 hover:bg-zinc-100"
+                        >
+                          <Link href={`/shop/${product.slug}`} target="_blank">
+                            <ExternalLink className="h-3.5 w-3.5 mr-1" /> View Store
+                          </Link>
+                        </Button>
+                      )}
+
+                      <button
+                        type="button"
+                        disabled={busy === product.id}
+                        onClick={() =>
+                          void changeStatus(
+                            product,
+                            product.status === "active" ? "inactive" : "active",
+                          )
+                        }
+                        className={`rounded-md px-3 py-1 text-xs font-bold transition ${
+                          product.status === "active"
+                            ? "bg-zinc-200 text-zinc-800 hover:bg-zinc-300"
+                            : "bg-emerald-600 text-white hover:bg-emerald-700"
+                        }`}
+                      >
+                        {product.status === "active" ? "Unpublish" : "Publish"}
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={busy === product.id}
+                        onClick={() => void deleteSingleProduct(product.id, product.title)}
+                        className="rounded-md px-2.5 py-1 text-xs font-bold text-rose-600 hover:bg-rose-50 hover:text-rose-700 transition"
+                        title="Delete product permanently"
+                      >
+                        <Trash2 className="h-4 w-4 inline mr-1" /> Delete
+                      </button>
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
           </div>
         ) : (
-          <p className="py-10 text-center text-muted">
-            {search || filter
-              ? "No matching products."
-              : "No products yet. Add your first product to begin."}
-          </p>
+          <div className="py-16 text-center space-y-3">
+            <p className="text-base font-semibold text-zinc-500">
+              {search || filter
+                ? "No matching products found."
+                : "No products in store catalogue yet."}
+            </p>
+            <Button asChild className="bg-amber-400 font-bold text-black hover:bg-amber-300">
+              <Link href="/admin/products/upload">📁 Upload Product Photos Now</Link>
+            </Button>
+          </div>
         )}
-        <div className="mt-5 flex items-center justify-between gap-4">
+
+        {/* ── Pagination ── */}
+        <div className="mt-8 flex items-center justify-between border-t border-zinc-200 pt-4">
           <Button
             disabled={loading || page <= 1}
             onClick={() => setPage(page - 1)}
             variant="outline"
+            className="font-bold border-zinc-300"
           >
-            Previous
+            Previous Page
           </Button>
-          <span className="text-sm">
-            Page {page} of {Math.max(1, result.pages)}
+          <span className="text-sm font-bold text-zinc-700">
+            Page {page} of {Math.max(1, result.pages)} ({result.total} total products)
           </span>
           <Button
             disabled={loading || page >= result.pages}
             onClick={() => setPage(page + 1)}
             variant="outline"
+            className="font-bold border-zinc-300"
           >
-            Next
+            Next Page
           </Button>
         </div>
       </section>
 
+      {/* ZIP Import Modal */}
       <ProductImportModal
         isOpen={importOpen}
         onClose={() => setImportOpen(false)}
