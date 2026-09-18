@@ -462,14 +462,30 @@ export class ProductImportService {
         ? `${dynamicAttributes["Fabric"] || "100% Cotton"} ${dynamicAttributes["GSM"] ? `(${dynamicAttributes["GSM"]} GSM)` : ""}`.trim()
         : "100% Combed Cotton";
 
-    // Images
+    // Images — supports three formats:
+    //   1. Array of objects: [{ filename: "foo.jpg", alt: "..." }]  (JSON manifest from build-inventory-zip-parts.cjs)
+    //   2. Array of plain strings: ["foo.jpg", "bar.jpg"]
+    //   3. Comma/semicolon-separated string: "foo.jpg, bar.jpg"
     const imageFilenames: string[] = [];
     if (matched.images) {
-      const splitImgs = String(matched.images)
-        .split(/[,;\n|]/)
-        .map((img) => img.trim())
-        .filter(Boolean);
-      imageFilenames.push(...splitImgs);
+      const rawImages = matched.images;
+      if (Array.isArray(rawImages)) {
+        for (const img of rawImages as unknown[]) {
+          if (typeof img === "string" && img.trim()) {
+            imageFilenames.push(img.trim());
+          } else if (typeof img === "object" && img !== null) {
+            const record = img as Record<string, unknown>;
+            const fn = record["filename"] ?? record["file"] ?? record["url"] ?? record["src"];
+            if (fn) imageFilenames.push(String(fn).trim());
+          }
+        }
+      } else {
+        const splitImgs = String(rawImages)
+          .split(/[,;\n|]/)
+          .map((img) => img.trim())
+          .filter(Boolean);
+        imageFilenames.push(...splitImgs);
+      }
     }
 
     const slug = matched.slug ? generateSlug(String(matched.slug)) : generateSlug(title);

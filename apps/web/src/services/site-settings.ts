@@ -28,7 +28,7 @@ async function publicApi<T>(path: string): Promise<T | null> {
   try {
     const response = await fetch(`${API_URL}/api/v1/public${path}`, {
       next: { revalidate: 60 },
-      signal: AbortSignal.timeout(2000),
+      signal: AbortSignal.timeout(8_000), // 8 s — handles Render cold-start
     });
     if (!response.ok) return null;
     const body = (await response.json()) as ApiResponse<T>;
@@ -63,21 +63,21 @@ export async function loadHomepageProducts(
   sort: "newest" | "best_sellers",
   collectionSlugs: readonly string[],
 ): Promise<readonly ProductSummaryDto[]> {
-  const parameters = new URLSearchParams({ limit: "4", page: "1", sort: "newest" });
-  if (sort === "best_sellers") parameters.set("bestSellers", "true");
+  const parameters = new URLSearchParams({ limit: "8", page: "1", sort: "newest" });
+  if (sort === "best_sellers") parameters.set("featured", "true"); // Use featured instead of bestSellers (which requires delivered orders)
   if (sort === "newest") parameters.set("newArrival", "true");
   if (collectionSlugs.length) parameters.set("collection", collectionSlugs.join(","));
   try {
-    if (!API_URL) return USE_STATIC_CATALOGUE ? productionProductSummaries(4) : [];
+    if (!API_URL) return USE_STATIC_CATALOGUE ? productionProductSummaries(8) : [];
     const response = await fetch(`${API_URL}/api/v1/catalog/products?${parameters}`, {
       cache: "no-store",
-      signal: AbortSignal.timeout(2_000),
+      signal: AbortSignal.timeout(8_000), // 8 s — accommodates Render cold-start (up to 30 s on free tier)
     });
-    if (!response.ok) return USE_STATIC_CATALOGUE ? productionProductSummaries(4) : [];
+    if (!response.ok) return USE_STATIC_CATALOGUE ? productionProductSummaries(8) : [];
     const body = (await response.json()) as ApiResponse<ProductPage>;
     return body.success ? body.data.items : [];
   } catch {
-    return USE_STATIC_CATALOGUE ? productionProductSummaries(4) : [];
+    return USE_STATIC_CATALOGUE ? productionProductSummaries(8) : [];
   }
 }
 

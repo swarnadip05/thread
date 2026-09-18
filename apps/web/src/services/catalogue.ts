@@ -50,7 +50,7 @@ async function catalogueGet<T>(path: string): Promise<CatalogueResponse<T>> {
   try {
     const response = await fetch(`${API_URL}/api/v1${path}`, {
       cache: "no-store",
-      signal: AbortSignal.timeout(4_000),
+      signal: AbortSignal.timeout(10_000), // 10 s — handles Render cold-start
     });
     if (response.status === 404) return { data: null, unavailable: false };
     if (!response.ok) return { data: null, unavailable: true };
@@ -99,11 +99,11 @@ export async function loadDiscoveryData(
     const [productsResponse, facetsResponse] = await Promise.all([
       fetch(`${API_URL}/api/v1/catalog/products?${query}`, {
         cache: "no-store",
-        signal: AbortSignal.timeout(4_000),
+        signal: AbortSignal.timeout(10_000),
       }),
       fetch(`${API_URL}/api/v1/catalog/products/facets?${query}`, {
         cache: "no-store",
-        signal: AbortSignal.timeout(4_000),
+        signal: AbortSignal.timeout(10_000),
       }),
     ]);
     if (!productsResponse.ok || !facetsResponse.ok)
