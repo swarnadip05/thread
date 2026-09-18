@@ -909,10 +909,11 @@ export class MongooseCheckoutRepository implements CheckoutRepository {
     providerOrderId?: string;
     providerPaymentId?: string;
   }): Promise<OrderDto> {
+    // Return existing order if already confirmed (idempotency)
     const existing = await OrderModel.findOne({ checkoutSessionId: input.sessionId }).lean();
     if (existing && existing.status !== "pending_payment") return orderDto(existing);
 
-    // Ensure collections exist before transaction to prevent "Cannot create namespace" error
+    // Ensure collections exist to prevent "Cannot create namespace in transaction" error
     await Promise.all([
       OrderSequenceModel.createCollection().catch(() => {}),
       OrderModel.createCollection().catch(() => {}),
@@ -920,187 +921,165 @@ export class MongooseCheckoutRepository implements CheckoutRepository {
       InventoryMovementModel.createCollection().catch(() => {}),
     ]);
 
-    const dbSession = await mongoose.startSession();
-    try {
-      let output: OrderDto | null = null;
-      try {
-        await dbSession.withTransaction(async () => {
-        const checkout = await CheckoutSessionModel.findOne({
-          _id: input.sessionId,
-          status: "active",
-        })
-          .session(dbSession)
-          .exec();
-        if (!checkout)
-          throw new HttpError(409, "CHECKOUT_NOT_ACTIVE", "Checkout is no longer active.");
-        if (checkout.expiresAt <= new Date())
-          throw new HttpError(409, "CHECKOUT_EXPIRED", "Checkout reservation has expired.");
-        const pendingOrder = await OrderModel.findOne({ checkoutSessionId: checkout._id })
-          .session(dbSession)
-          .exec();
-        if (pendingOrder && pendingOrder.status !== "pending_payment") {
-          output = orderDto(pendingOrder.toObject());
-          return;
-        }
-        if (checkout.couponId) {
-          const couponUpdated = await CouponModel.updateOne(
-            {
-              _id: checkout.couponId,
-              $or: [{ usageLimit: null }, { $expr: { $lt: ["$redeemedCount", "$usageLimit"] } }],
-            },
-            { $inc: { redeemedCount: 1 } },
-            { session: dbSession },
-          );
-          if (couponUpdated.modifiedCount !== 1)
-            throw new HttpError(409, "COUPON_EXHAUSTED", "Coupon is no longer available.");
-        }
-        let orderNumber: string;
-        let orderId: Types.ObjectId;
-        if (pendingOrder) {
-          orderNumber = pendingOrder.orderNumber;
-          orderId = pendingOrder._id;
-        } else {
-          const year = new Date().getUTCFullYear();
-          const sequence = await OrderSequenceModel.findOneAndUpdate(
-            { key: `order:${year}` },
-            { $inc: { value: 1 } },
-            { upsert: true, new: true, session: dbSession },
-          );
-          orderNumber = `THR-${year}-${String(sequence.value).padStart(6, "0")}`;
-          orderId = new Types.ObjectId();
-        }
-        const reservations = await StockReservationModel.find({
-          checkoutSessionId: checkout._id,
-          status: "active",
-        })
-          .session(dbSession)
-          .lean();
-        if (reservations.length !== checkout.items.length)
-          throw new HttpError(409, "RESERVATION_INVALID", "Stock reservation is incomplete.");
-        for (const reservation of reservations) {
-          const variant = await ProductVariantModel.findOneAndUpdate(
-            {
-              _id: reservation.variantId,
-              stockOnHand: { $gte: reservation.quantity },
-              stockReserved: { $gte: reservation.quantity },
-            },
-            {
-              $inc: {
-                stockOnHand: -reservation.quantity,
-                stockReserved: -reservation.quantity,
-              },
-            },
-            { new: false, session: dbSession },
-          ).lean();
-          if (!variant)
-            throw new HttpError(409, "RESERVATION_INVALID", "Reserved stock is unavailable.");
-          await InventoryMovementModel.create(
-            [
-              {
-                productId: reservation.productId,
-                variantId: reservation.variantId,
-                type: "order_confirmed",
-                quantityDelta: -reservation.quantity,
-                stockBefore: variant.stockOnHand,
-                stockAfter: variant.stockOnHand - reservation.quantity,
-                reason: `Order ${orderNumber} confirmed`,
-                orderId,
-              },
-            ],
-            { session: dbSession },
-          );
-        }
-        const status = "confirmed" as const;
-        let confirmedOrder: WithId<Order>;
-        if (pendingOrder) {
-          pendingOrder.status = status;
-          pendingOrder.statusHistory.push({ status, at: new Date() });
-          await pendingOrder.save({ session: dbSession });
-          confirmedOrder = pendingOrder.toObject();
-        } else {
-          const orders = await OrderModel.create(
-            [
-              {
-                _id: orderId,
-                orderNumber,
-                userId: checkout.userId,
-                checkoutSessionId: checkout._id,
-                status,
-                address: checkout.address,
-                shippingMethod: checkout.shippingMethod,
-                items: checkout.items,
-                totals: checkout.totals,
-                ...(checkout.couponId
-                  ? { couponId: checkout.couponId, couponCode: checkout.couponCode }
-                  : {}),
-                paymentMethod: checkout.paymentMethod,
-                statusHistory: [{ status, at: new Date() }],
-              },
-            ],
-            { session: dbSession },
-          );
-          confirmedOrder = orders[0]!.toObject();
-        }
-        if (input.provider === "cod") {
-          await PaymentRecordModel.create(
-            [
-              {
-                orderId,
-                checkoutSessionId: checkout._id,
-                userId: checkout.userId,
-                provider: "cod",
-                amountPaise: checkout.totals.totalPaise,
-                currency: "INR",
-                status: "awaiting_method",
-                idempotencyKeyHash: input.confirmationIdempotencyKeyHash,
-              },
-            ],
-            { session: dbSession },
-          );
-        } else {
-          const paymentUpdated = await PaymentRecordModel.updateOne(
-            {
-              checkoutSessionId: checkout._id,
-              provider: input.provider,
-              ...(input.providerOrderId ? { providerOrderId: input.providerOrderId } : {}),
-            },
-            {
-              $set: {
-                status: "captured",
-                ...(input.providerPaymentId ? { providerPaymentId: input.providerPaymentId } : {}),
-                capturedAt: new Date(),
-                providerVerifiedAt: new Date(),
-                failureCode: null,
-              },
-            },
-            { session: dbSession },
-          );
-          if (paymentUpdated.modifiedCount !== 1)
-            throw new HttpError(
-              409,
-              "PAYMENT_RECORD_MISMATCH",
-              "Verified payment does not match the internal order.",
-            );
-        }
-        await StockReservationModel.updateMany(
-          { checkoutSessionId: checkout._id, status: "active" },
-          { $set: { status: "committed", committedAt: new Date(), orderId } },
-          { session: dbSession },
-        );
-        checkout.status = "converted";
-        checkout.orderId = orderId;
-        await checkout.save({ session: dbSession });
-        output = orderDto(confirmedOrder);
-      });
-      } catch (err: any) {
-        throw new HttpError(400, "DEBUG_ERROR", err?.message || String(err));
-      }
-      if (!output)
-        throw new HttpError(500, "ORDER_CONFIRM_FAILED", "Order could not be confirmed.");
-      return output;
-    } finally {
-      await dbSession.endSession();
+    // ---------- Load and validate the checkout session ----------
+    const checkout = await CheckoutSessionModel.findOne({
+      _id: input.sessionId,
+      status: "active",
+    }).exec();
+    if (!checkout)
+      throw new HttpError(409, "CHECKOUT_NOT_ACTIVE", "Checkout is no longer active.");
+    if (checkout.expiresAt <= new Date())
+      throw new HttpError(409, "CHECKOUT_EXPIRED", "Checkout reservation has expired.");
+
+    // Check for a pending order that was partially created
+    const pendingOrder = await OrderModel.findOne({ checkoutSessionId: checkout._id }).exec();
+    if (pendingOrder && pendingOrder.status !== "pending_payment") {
+      return orderDto(pendingOrder.toObject());
     }
+
+    // ---------- Validate coupon (if present) ----------
+    if (checkout.couponId) {
+      const couponUpdated = await CouponModel.updateOne(
+        {
+          _id: checkout.couponId,
+          $or: [{ usageLimit: null }, { $expr: { $lt: ["$redeemedCount", "$usageLimit"] } }],
+        },
+        { $inc: { redeemedCount: 1 } },
+      );
+      if (couponUpdated.modifiedCount !== 1)
+        throw new HttpError(409, "COUPON_EXHAUSTED", "Coupon is no longer available.");
+    }
+
+    // ---------- Generate order number ----------
+    let orderNumber: string;
+    let orderId: Types.ObjectId;
+    if (pendingOrder) {
+      orderNumber = pendingOrder.orderNumber;
+      orderId = pendingOrder._id;
+    } else {
+      const year = new Date().getUTCFullYear();
+      const sequence = await OrderSequenceModel.findOneAndUpdate(
+        { key: `order:${year}` },
+        { $inc: { value: 1 } },
+        { upsert: true, new: true },
+      );
+      orderNumber = `THR-${year}-${String(sequence.value).padStart(6, "0")}`;
+      orderId = new Types.ObjectId();
+    }
+
+    // ---------- Validate reservations ----------
+    const reservations = await StockReservationModel.find({
+      checkoutSessionId: checkout._id,
+      status: "active",
+    }).lean();
+    if (reservations.length !== checkout.items.length)
+      throw new HttpError(409, "RESERVATION_INVALID", "Stock reservation is incomplete.");
+
+    // ---------- Deduct stock ----------
+    for (const reservation of reservations) {
+      const variant = await ProductVariantModel.findOneAndUpdate(
+        {
+          _id: reservation.variantId,
+          stockOnHand: { $gte: reservation.quantity },
+          stockReserved: { $gte: reservation.quantity },
+        },
+        {
+          $inc: {
+            stockOnHand: -reservation.quantity,
+            stockReserved: -reservation.quantity,
+          },
+        },
+        { new: false },
+      ).lean();
+      if (!variant)
+        throw new HttpError(409, "RESERVATION_INVALID", "Reserved stock is unavailable.");
+      await InventoryMovementModel.create({
+        productId: reservation.productId,
+        variantId: reservation.variantId,
+        type: "order_confirmed",
+        quantityDelta: -reservation.quantity,
+        stockBefore: variant.stockOnHand,
+        stockAfter: variant.stockOnHand - reservation.quantity,
+        reason: `Order ${orderNumber} confirmed`,
+        orderId,
+      });
+    }
+
+    // ---------- Create / update order ----------
+    const status = "confirmed" as const;
+    let confirmedOrder: Order & { _id: Types.ObjectId };
+    if (pendingOrder) {
+      pendingOrder.status = status;
+      pendingOrder.statusHistory.push({ status, at: new Date() });
+      await pendingOrder.save();
+      confirmedOrder = pendingOrder.toObject();
+    } else {
+      const created = await OrderModel.create({
+        _id: orderId,
+        orderNumber,
+        userId: checkout.userId,
+        checkoutSessionId: checkout._id,
+        status,
+        address: checkout.address,
+        shippingMethod: checkout.shippingMethod,
+        items: checkout.items,
+        totals: checkout.totals,
+        ...(checkout.couponId
+          ? { couponId: checkout.couponId, couponCode: checkout.couponCode }
+          : {}),
+        paymentMethod: checkout.paymentMethod,
+        statusHistory: [{ status, at: new Date() }],
+      });
+      confirmedOrder = created.toObject();
+    }
+
+    // ---------- Create payment record ----------
+    if (input.provider === "cod") {
+      await PaymentRecordModel.create({
+        orderId,
+        checkoutSessionId: checkout._id,
+        userId: checkout.userId,
+        provider: "cod",
+        amountPaise: checkout.totals.totalPaise,
+        currency: "INR",
+        status: "awaiting_method",
+        idempotencyKeyHash: input.confirmationIdempotencyKeyHash,
+      });
+    } else {
+      const paymentUpdated = await PaymentRecordModel.updateOne(
+        {
+          checkoutSessionId: checkout._id,
+          provider: input.provider,
+          ...(input.providerOrderId ? { providerOrderId: input.providerOrderId } : {}),
+        },
+        {
+          $set: {
+            status: "captured",
+            ...(input.providerPaymentId ? { providerPaymentId: input.providerPaymentId } : {}),
+            capturedAt: new Date(),
+            providerVerifiedAt: new Date(),
+            failureCode: null,
+          },
+        },
+      );
+      if (paymentUpdated.modifiedCount !== 1)
+        throw new HttpError(
+          409,
+          "PAYMENT_RECORD_MISMATCH",
+          "Verified payment does not match the internal order.",
+        );
+    }
+
+    // ---------- Commit reservations and close session ----------
+    await StockReservationModel.updateMany(
+      { checkoutSessionId: checkout._id, status: "active" },
+      { $set: { status: "committed", committedAt: new Date(), orderId } },
+    );
+    checkout.status = "converted";
+    checkout.orderId = orderId;
+    await checkout.save();
+
+    return orderDto(confirmedOrder);
   }
 
   async listShippingMethods(includeInactive = false): Promise<readonly ShippingMethodDto[]> {
