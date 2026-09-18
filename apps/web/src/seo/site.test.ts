@@ -19,8 +19,6 @@ describe("resolveSiteUrl", () => {
   });
 
   it("keeps localhost available for development", () => {
-    expect(resolveSiteUrl("http://localhost:3000", "development")).toBe(
-      "http://localhost:3000",
-    );
+    expect(resolveSiteUrl("http://localhost:3000", "development")).toBe("http://localhost:3000");
   });
 });

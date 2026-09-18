@@ -4,7 +4,6 @@ import type { ZodType } from "@thread/validation";
 import {
   bulkProductUpdateSchema,
   catalogueQuerySchema,
-  csvImportPreviewSchema,
   inventoryAdjustmentSchema,
   mediaAttachSchema,
   mediaDeleteSchema,
@@ -30,7 +29,9 @@ import {
   validateBody,
 } from "../../auth/http/security.middleware.js";
 import { HttpError } from "../../middleware/error-handler.js";
+import multer from "multer";
 import type { CatalogueService } from "../catalogue.service.js";
+import { ProductImportService } from "../product-import.service.js";
 import type { DeliveryEligibilityProvider } from "../delivery/delivery.provider.js";
 import type { ReviewService } from "../reviews/review.service.js";
 
@@ -98,6 +99,7 @@ export function createCatalogueRouter(
   delivery: DeliveryEligibilityProvider,
   authenticateAdmin: RequestHandler,
   options: { maxCartQuantity: number; webOrigin: string },
+  productImportService?: ProductImportService,
 ): Router;
 export function createCatalogueRouter(
   service: CatalogueService,
@@ -105,6 +107,7 @@ export function createCatalogueRouter(
   deliveryProvider?: DeliveryEligibilityProvider,
   authentication?: RequestHandler,
   configuredOptions?: { maxCartQuantity: number; webOrigin: string },
+  productImportService?: ProductImportService,
 ): Router {
   const reviews =
     typeof reviewsOrAuthentication === "function" ? undefined : reviewsOrAuthentication;
@@ -122,6 +125,11 @@ export function createCatalogueRouter(
     webOrigin: "http://localhost:3000",
   };
   const router = Router();
+  const importService = productImportService ?? new ProductImportService();
+  const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 100 * 1024 * 1024 }, // 100MB
+  });
   const catalogueRoles = requireRoles("super_admin", "admin", "catalog_manager");
   const inventoryRoles = requireRoles("super_admin", "admin", "catalog_manager", "order_manager");
   const reviewModerationRoles = requireRoles(
@@ -288,9 +296,70 @@ export function createCatalogueRouter(
   router.post(
     "/admin/products/import-preview",
     catalogueRoles,
-    validateBody(csvImportPreviewSchema),
-    (request, response) =>
-      response.json({ success: true, data: service.previewCsv(request.body.csv) }),
+    upload.single("file"),
+    async (request, response) => {
+      let buffer: Buffer | null = null;
+      let filename = "import.xlsx";
+
+      if (request.file) {
+        buffer = request.file.buffer;
+        filename = request.file.originalname;
+      } else if (request.body?.fileBase64) {
+        buffer = Buffer.from(String(request.body.fileBase64), "base64");
+        filename = String(request.body.filename || "import.xlsx");
+      } else if (request.body?.csv) {
+        buffer = Buffer.from(String(request.body.csv), "utf-8");
+        filename = "import.csv";
+      }
+
+      if (!buffer) {
+        throw new HttpError(
+          400,
+          "MISSING_FILE",
+          "Please upload a file (.zip, .xlsx, .xls, .csv, .json) or provide fileBase64.",
+        );
+      }
+
+      const preview = await importService.previewImport(buffer, filename);
+      response.json({ success: true, data: preview });
+    },
+  );
+
+  router.post(
+    "/admin/products/import",
+    catalogueRoles,
+    upload.single("file"),
+    async (request, response) => {
+      let buffer: Buffer | null = null;
+      let filename = "import.xlsx";
+
+      if (request.file) {
+        buffer = request.file.buffer;
+        filename = request.file.originalname;
+      } else if (request.body?.fileBase64) {
+        buffer = Buffer.from(String(request.body.fileBase64), "base64");
+        filename = String(request.body.filename || "import.xlsx");
+      } else if (request.body?.csv) {
+        buffer = Buffer.from(String(request.body.csv), "utf-8");
+        filename = "import.csv";
+      }
+
+      if (!buffer) {
+        throw new HttpError(
+          400,
+          "MISSING_FILE",
+          "Please upload a file (.zip, .xlsx, .xls, .csv, .json) or provide fileBase64 to import.",
+        );
+      }
+
+      const result = await importService.executeImport(
+        buffer,
+        filename,
+        request.auth!.userId,
+        context(request),
+      );
+      response.json({ success: true, data: result });
+    },
   );
   router.post(
     "/admin/products/bulk",

@@ -99,6 +99,7 @@ export interface ProductSummaryDto {
     readonly name: string;
     readonly hex?: string;
   }[];
+  readonly sizes?: readonly string[];
   readonly minMrpPaise: number;
   readonly minSalePricePaise: number;
   readonly ratingAverage: number;
@@ -459,6 +460,7 @@ export interface InventoryAdminRowDto {
   readonly sku: string;
   readonly colour: string;
   readonly size: string;
+  readonly attributes?: Readonly<Record<string, string>>;
   readonly stockOnHand: number;
   readonly stockReserved: number;
   readonly availableStock: number;

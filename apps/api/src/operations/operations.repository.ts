@@ -414,6 +414,16 @@ export class OperationsRepository {
     return {
       items: variants.map((variant) => {
         const availableStock = variant.stockOnHand - variant.stockReserved;
+        const attributes: Record<string, string> = {};
+        if (variant.attributes) {
+          if (variant.attributes instanceof Map) {
+            for (const [k, v] of variant.attributes.entries()) {
+              attributes[k] = String(v);
+            }
+          } else if (typeof variant.attributes === "object") {
+            Object.assign(attributes, variant.attributes);
+          }
+        }
         return {
           variantId: variant._id.toString(),
           productId: variant.productId.toString(),
@@ -421,6 +431,7 @@ export class OperationsRepository {
           sku: variant.sku,
           colour: variant.colour,
           size: variant.size,
+          ...(Object.keys(attributes).length > 0 ? { attributes } : {}),
           stockOnHand: variant.stockOnHand,
           stockReserved: variant.stockReserved,
           availableStock,

@@ -6,9 +6,13 @@ export const API_URL = configuredApiUrl;
 const environmentSocketUrl = process.env.NEXT_PUBLIC_SOCKET_URL;
 export const SOCKET_URL =
   process.env.NODE_ENV === "production" &&
-  (!environmentSocketUrl || /(^|\/\/)(localhost|127\.0\.0\.1)(?::|\/|$)/i.test(environmentSocketUrl))
+  (!environmentSocketUrl ||
+    /(^|\/\/)(localhost|127\.0\.0\.1)(?::|\/|$)/i.test(environmentSocketUrl))
     ? "https://thread-sfe5.onrender.com"
-    : environmentSocketUrl || (process.env.NODE_ENV === "production" ? "https://thread-sfe5.onrender.com" : "http://localhost:4000");
+    : environmentSocketUrl ||
+      (process.env.NODE_ENV === "production"
+        ? "https://thread-sfe5.onrender.com"
+        : "http://localhost:4000");
 
 function csrfToken(): string {
   if (typeof document === "undefined") return "";
@@ -89,11 +93,12 @@ export async function apiRequest<T>(
   accessToken: string,
   options: RequestInit = {},
 ): Promise<T> {
+  const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
   const response = await fetch(`${API_URL}/api/v1${path}`, {
     ...options,
     credentials: "include",
     headers: {
-      "content-type": "application/json",
+      ...(isFormData ? {} : { "content-type": "application/json" }),
       authorization: `Bearer ${accessToken}`,
       ...(csrfToken() ? { "x-csrf-token": csrfToken() } : {}),
       ...options.headers,

@@ -1,0 +1,329 @@
+{
+  "timestamp": "2026-09-18T06:57:58.013Z",
+  "totalProcessed": 100,
+  "productsCreated": 100,
+  "variantsGenerated": 500,
+  "sizesAllocated": [
+    "S",
+    "M",
+    "L",
+    "XL",
+    "2XL"
+  ],
+  "categoriesCreated": [
+    "Oversized T-Shirts"
+  ],
+  "dynamicColumns": [
+    "gsm",
+    "neck_type",
+    "design_code"
+  ],
+  "imagesSaved": 100,
+  "sampleProducts": [
+    {
+      "title": "Men's Oversized DTF Graphic T-Shirt #WA0106",
+      "slug": "mens-oversized-dtf-graphic-t-shirt-wa0106",
+      "shortDescription": "Men's Oversized 240 GSM heavy cotton streetwear t-shirt with high-density DTF graphic print.",
+      "descriptionHtml": "<p>Premium 240 GSM combed cotton oversized streetwear t-shirt with high-density DTF graphic print. Features dropped shoulders, ribbed crew collar, and relaxed silhouette.</p>",
+      "categoryName": "Oversized T-Shirts",
+      "categorySlug": "oversized-t-shirts",
+      "audience": "men",
+      "brand": "THREAD",
+      "fit": "Oversized",
+      "fabric": "100% Combed Cotton",
+      "mrp": 899,
+      "salePrice": 699,
+      "sizes": [
+        "S",
+        "M",
+        "L",
+        "XL",
+        "2XL"
+      ],
+      "colour": "Standard",
+      "colourHex": "#1A1A1A",
+      "stockPerSize": 25,
+      "tags": [
+        "streetwear",
+        "cotton",
+        "oversized",
+        "men"
+      ],
+      "care": [
+        "Wash inside out in cold water with similar colours.",
+        "Hang dry or tumble dry on low heat.",
+        "Do not iron directly over the graphic print.",
+        "Do not use chlorine bleach."
+      ],
+      "imageFilenames": [
+        "IMG-20260713-WA0106.jpg"
+      ],
+      "dynamicAttributes": {
+        "gsm": "240",
+        "neck_type": "Ribbed Crew Neck",
+        "design_code": "WA0106"
+      },
+      "rawRow": {
+        "title": "Men's Oversized DTF Graphic T-Shirt #WA0106",
+        "shortDescription": "Men's Oversized 240 GSM heavy cotton streetwear t-shirt with high-density DTF graphic print.",
+        "descriptionHtml": "<p>Premium 240 GSM combed cotton oversized streetwear t-shirt with high-density DTF graphic print. Features dropped shoulders, ribbed crew collar, and relaxed silhouette.</p>",
+        "category": "Oversized T-Shirts",
+        "audience": "men",
+        "fit": "Oversized",
+        "fabric": "100% Combed Cotton",
+        "gsm": "240",
+        "neck_type": "Ribbed Crew Neck",
+        "sizes": "S, M, L, XL, 2XL",
+        "mrp": 899,
+        "sale_price": 699,
+        "stock": 25,
+        "images": "IMG-20260713-WA0106.jpg",
+        "design_code": "WA0106"
+      }
+    },
+    {
+      "title": "Men's Oversized DTF Graphic T-Shirt #WA0107",
+      "slug": "mens-oversized-dtf-graphic-t-shirt-wa0107",
+      "shortDescription": "Men's Oversized 240 GSM heavy cotton streetwear t-shirt with high-density DTF graphic print.",
+      "descriptionHtml": "<p>Premium 240 GSM combed cotton oversized streetwear t-shirt with high-density DTF graphic print. Features dropped shoulders, ribbed crew collar, and relaxed silhouette.</p>",
+      "categoryName": "Oversized T-Shirts",
+      "categorySlug": "oversized-t-shirts",
+      "audience": "men",
+      "brand": "THREAD",
+      "fit": "Oversized",
+      "fabric": "100% Combed Cotton",
+      "mrp": 899,
+      "salePrice": 699,
+      "sizes": [
+        "S",
+        "M",
+        "L",
+        "XL",
+        "2XL"
+      ],
+      "colour": "Standard",
+      "colourHex": "#1A1A1A",
+      "stockPerSize": 25,
+      "tags": [
+        "streetwear",
+        "cotton",
+        "oversized",
+        "men"
+      ],
+      "care": [
+        "Wash inside out in cold water with similar colours.",
+        "Hang dry or tumble dry on low heat.",
+        "Do not iron directly over the graphic print.",
+        "Do not use chlorine bleach."
+      ],
+      "imageFilenames": [
+        "IMG-20260713-WA0107.jpg"
+      ],
+      "dynamicAttributes": {
+        "gsm": "240",
+        "neck_type": "Ribbed Crew Neck",
+        "design_code": "WA0107"
+      },
+      "rawRow": {
+        "title": "Men's Oversized DTF Graphic T-Shirt #WA0107",
+        "shortDescription": "Men's Oversized 240 GSM heavy cotton streetwear t-shirt with high-density DTF graphic print.",
+        "descriptionHtml": "<p>Premium 240 GSM combed cotton oversized streetwear t-shirt with high-density DTF graphic print. Features dropped shoulders, ribbed crew collar, and relaxed silhouette.</p>",
+        "category": "Oversized T-Shirts",
+        "audience": "men",
+        "fit": "Oversized",
+        "fabric": "100% Combed Cotton",
+        "gsm": "240",
+        "neck_type": "Ribbed Crew Neck",
+        "sizes": "S, M, L, XL, 2XL",
+        "mrp": 899,
+        "sale_price": 699,
+        "stock": 25,
+        "images": "IMG-20260713-WA0107.jpg",
+        "design_code": "WA0107"
+      }
+    },
+    {
+      "title": "Men's Oversized DTF Graphic T-Shirt #WA0108",
+      "slug": "mens-oversized-dtf-graphic-t-shirt-wa0108",
+      "shortDescription": "Men's Oversized 240 GSM heavy cotton streetwear t-shirt with high-density DTF graphic print.",
+      "descriptionHtml": "<p>Premium 240 GSM combed cotton oversized streetwear t-shirt with high-density DTF graphic print. Features dropped shoulders, ribbed crew collar, and relaxed silhouette.</p>",
+      "categoryName": "Oversized T-Shirts",
+      "categorySlug": "oversized-t-shirts",
+      "audience": "men",
+      "brand": "THREAD",
+      "fit": "Oversized",
+      "fabric": "100% Combed Cotton",
+      "mrp": 899,
+      "salePrice": 699,
+      "sizes": [
+        "S",
+        "M",
+        "L",
+        "XL",
+        "2XL"
+      ],
+      "colour": "Standard",
+      "colourHex": "#1A1A1A",
+      "stockPerSize": 25,
+      "tags": [
+        "streetwear",
+        "cotton",
+        "oversized",
+        "men"
+      ],
+      "care": [
+        "Wash inside out in cold water with similar colours.",
+        "Hang dry or tumble dry on low heat.",
+        "Do not iron directly over the graphic print.",
+        "Do not use chlorine bleach."
+      ],
+      "imageFilenames": [
+        "IMG-20260713-WA0108.jpg"
+      ],
+      "dynamicAttributes": {
+        "gsm": "240",
+        "neck_type": "Ribbed Crew Neck",
+        "design_code": "WA0108"
+      },
+      "rawRow": {
+        "title": "Men's Oversized DTF Graphic T-Shirt #WA0108",
+        "shortDescription": "Men's Oversized 240 GSM heavy cotton streetwear t-shirt with high-density DTF graphic print.",
+        "descriptionHtml": "<p>Premium 240 GSM combed cotton oversized streetwear t-shirt with high-density DTF graphic print. Features dropped shoulders, ribbed crew collar, and relaxed silhouette.</p>",
+        "category": "Oversized T-Shirts",
+        "audience": "men",
+        "fit": "Oversized",
+        "fabric": "100% Combed Cotton",
+        "gsm": "240",
+        "neck_type": "Ribbed Crew Neck",
+        "sizes": "S, M, L, XL, 2XL",
+        "mrp": 899,
+        "sale_price": 699,
+        "stock": 25,
+        "images": "IMG-20260713-WA0108.jpg",
+        "design_code": "WA0108"
+      }
+    },
+    {
+      "title": "Men's Oversized DTF Graphic T-Shirt #WA0109",
+      "slug": "mens-oversized-dtf-graphic-t-shirt-wa0109",
+      "shortDescription": "Men's Oversized 240 GSM heavy cotton streetwear t-shirt with high-density DTF graphic print.",
+      "descriptionHtml": "<p>Premium 240 GSM combed cotton oversized streetwear t-shirt with high-density DTF graphic print. Features dropped shoulders, ribbed crew collar, and relaxed silhouette.</p>",
+      "categoryName": "Oversized T-Shirts",
+      "categorySlug": "oversized-t-shirts",
+      "audience": "men",
+      "brand": "THREAD",
+      "fit": "Oversized",
+      "fabric": "100% Combed Cotton",
+      "mrp": 899,
+      "salePrice": 699,
+      "sizes": [
+        "S",
+        "M",
+        "L",
+        "XL",
+        "2XL"
+      ],
+      "colour": "Standard",
+      "colourHex": "#1A1A1A",
+      "stockPerSize": 25,
+      "tags": [
+        "streetwear",
+        "cotton",
+        "oversized",
+        "men"
+      ],
+      "care": [
+        "Wash inside out in cold water with similar colours.",
+        "Hang dry or tumble dry on low heat.",
+        "Do not iron directly over the graphic print.",
+        "Do not use chlorine bleach."
+      ],
+      "imageFilenames": [
+        "IMG-20260713-WA0109.jpg"
+      ],
+      "dynamicAttributes": {
+        "gsm": "240",
+        "neck_type": "Ribbed Crew Neck",
+        "design_code": "WA0109"
+      },
+      "rawRow": {
+        "title": "Men's Oversized DTF Graphic T-Shirt #WA0109",
+        "shortDescription": "Men's Oversized 240 GSM heavy cotton streetwear t-shirt with high-density DTF graphic print.",
+        "descriptionHtml": "<p>Premium 240 GSM combed cotton oversized streetwear t-shirt with high-density DTF graphic print. Features dropped shoulders, ribbed crew collar, and relaxed silhouette.</p>",
+        "category": "Oversized T-Shirts",
+        "audience": "men",
+        "fit": "Oversized",
+        "fabric": "100% Combed Cotton",
+        "gsm": "240",
+        "neck_type": "Ribbed Crew Neck",
+        "sizes": "S, M, L, XL, 2XL",
+        "mrp": 899,
+        "sale_price": 699,
+        "stock": 25,
+        "images": "IMG-20260713-WA0109.jpg",
+        "design_code": "WA0109"
+      }
+    },
+    {
+      "title": "Men's Oversized DTF Graphic T-Shirt #WA0110",
+      "slug": "mens-oversized-dtf-graphic-t-shirt-wa0110",
+      "shortDescription": "Men's Oversized 240 GSM heavy cotton streetwear t-shirt with high-density DTF graphic print.",
+      "descriptionHtml": "<p>Premium 240 GSM combed cotton oversized streetwear t-shirt with high-density DTF graphic print. Features dropped shoulders, ribbed crew collar, and relaxed silhouette.</p>",
+      "categoryName": "Oversized T-Shirts",
+      "categorySlug": "oversized-t-shirts",
+      "audience": "men",
+      "brand": "THREAD",
+      "fit": "Oversized",
+      "fabric": "100% Combed Cotton",
+      "mrp": 899,
+      "salePrice": 699,
+      "sizes": [
+        "S",
+        "M",
+        "L",
+        "XL",
+        "2XL"
+      ],
+      "colour": "Standard",
+      "colourHex": "#1A1A1A",
+      "stockPerSize": 25,
+      "tags": [
+        "streetwear",
+        "cotton",
+        "oversized",
+        "men"
+      ],
+      "care": [
+        "Wash inside out in cold water with similar colours.",
+        "Hang dry or tumble dry on low heat.",
+        "Do not iron directly over the graphic print.",
+        "Do not use chlorine bleach."
+      ],
+      "imageFilenames": [
+        "IMG-20260713-WA0110.jpg"
+      ],
+      "dynamicAttributes": {
+        "gsm": "240",
+        "neck_type": "Ribbed Crew Neck",
+        "design_code": "WA0110"
+      },
+      "rawRow": {
+        "title": "Men's Oversized DTF Graphic T-Shirt #WA0110",
+        "shortDescription": "Men's Oversized 240 GSM heavy cotton streetwear t-shirt with high-density DTF graphic print.",
+        "descriptionHtml": "<p>Premium 240 GSM combed cotton oversized streetwear t-shirt with high-density DTF graphic print. Features dropped shoulders, ribbed crew collar, and relaxed silhouette.</p>",
+        "category": "Oversized T-Shirts",
+        "audience": "men",
+        "fit": "Oversized",
+        "fabric": "100% Combed Cotton",
+        "gsm": "240",
+        "neck_type": "Ribbed Crew Neck",
+        "sizes": "S, M, L, XL, 2XL",
+        "mrp": 899,
+        "sale_price": 699,
+        "stock": 25,
+        "images": "IMG-20260713-WA0110.jpg",
+        "design_code": "WA0110"
+      }
+    }
+  ]
+}

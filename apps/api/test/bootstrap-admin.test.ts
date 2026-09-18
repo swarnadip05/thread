@@ -33,9 +33,22 @@ describe("administrator bootstrap validation", () => {
 
 describe("Mongoose-backed admin authentication", () => {
   it("issues a JWT from Mongoose role arrays without structuredClone errors", async () => {
-    const user = new UserModel({ name: "Administrator", email: "admin@example.test", roles: ["super_admin"] });
-    const tokens = new JwtAccessTokenService("test-only-secret-".repeat(3), "thread-api", "thread-web", 900);
-    const token = await tokens.issue({ subject: user.id, roles: user.roles as UserRole[], sessionFamilyId: "test-family" });
+    const user = new UserModel({
+      name: "Administrator",
+      email: "admin@example.test",
+      roles: ["super_admin"],
+    });
+    const tokens = new JwtAccessTokenService(
+      "test-only-secret-".repeat(3),
+      "thread-api",
+      "thread-web",
+      900,
+    );
+    const token = await tokens.issue({
+      subject: user.id,
+      roles: user.roles as UserRole[],
+      sessionFamilyId: "test-family",
+    });
     expect((await tokens.verify(token)).roles).toEqual(["super_admin"]);
   });
 });

@@ -28,6 +28,14 @@ describe("buildWhatsAppOrderUrl", () => {
   });
 
   it("rejects an unusable business number", () => {
-    expect(buildWhatsAppOrderUrl({ phone: "123", product: {} as never, productUrl: "", quantity: 1, variant: {} as never })).toBeNull();
+    expect(
+      buildWhatsAppOrderUrl({
+        phone: "123",
+        product: {} as never,
+        productUrl: "",
+        quantity: 1,
+        variant: {} as never,
+      }),
+    ).toBeNull();
   });
 });

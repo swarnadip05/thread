@@ -3,9 +3,11 @@
 import type { AdminProductDto, ProductStatus } from "@thread/types";
 import { Button, Price, Skeleton } from "@thread/ui";
 import Link from "next/link";
+import { Upload } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { apiRequest } from "@/auth/auth-client";
 import { useAuth } from "@/auth/auth-provider";
+import { ProductImportModal } from "./product-import-modal";
 
 interface ProductPage {
   items: AdminProductDto[];
@@ -22,6 +24,7 @@ export function ProductsAdmin() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
+  const [importOpen, setImportOpen] = useState(false);
   const load = useCallback(async () => {
     if (!accessToken) return;
     setLoading(true);
@@ -80,9 +83,19 @@ export function ProductsAdmin() {
             {result.total} products · Manage your THREAD catalogue.
           </p>
         </div>
-        <Button asChild>
-          <Link href="/admin/products/new">Add product</Link>
-        </Button>
+        <div className="flex items-center gap-3">
+          <Button
+            className="flex items-center gap-2"
+            onClick={() => setImportOpen(true)}
+            variant="outline"
+          >
+            <Upload className="h-4 w-4" />
+            Bulk Import (ZIP / Excel)
+          </Button>
+          <Button asChild>
+            <Link href="/admin/products/new">Add product</Link>
+          </Button>
+        </div>
       </div>
       <form className="mt-6 flex flex-wrap gap-3" onSubmit={searchProducts}>
         <input
@@ -204,6 +217,14 @@ export function ProductsAdmin() {
           </Button>
         </div>
       </section>
+
+      <ProductImportModal
+        isOpen={importOpen}
+        onClose={() => setImportOpen(false)}
+        onSuccess={() => {
+          void load();
+        }}
+      />
     </div>
   );
 }

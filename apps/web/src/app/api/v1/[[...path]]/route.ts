@@ -8,9 +8,10 @@ const rawBackendUrl =
 const isLocalhost = /(^|\/\/)(localhost|127\.0\.0\.1)(?::|\/|$)/i.test(rawBackendUrl);
 const BACKEND_URL = (
   process.env.NODE_ENV === "production" && isLocalhost
-    ? (process.env.BACKEND_API_URL && !/(^|\/\/)(localhost|127\.0\.0\.1)(?::|\/|$)/i.test(process.env.BACKEND_API_URL)
-        ? process.env.BACKEND_API_URL
-        : "https://thread-sfe5.onrender.com")
+    ? process.env.BACKEND_API_URL &&
+      !/(^|\/\/)(localhost|127\.0\.0\.1)(?::|\/|$)/i.test(process.env.BACKEND_API_URL)
+      ? process.env.BACKEND_API_URL
+      : "https://thread-sfe5.onrender.com"
     : rawBackendUrl
 )
   .replace(/\/+$/, "")
@@ -43,9 +44,7 @@ async function handleProxy(
     forwardHeaders.set("origin", origin);
   }
 
-  const clientIp =
-    request.headers.get("x-forwarded-for") ||
-    request.headers.get("x-real-ip");
+  const clientIp = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip");
   if (clientIp) {
     forwardHeaders.set("x-forwarded-for", clientIp);
   }
@@ -106,9 +105,7 @@ async function handleProxy(
         error: {
           code: "PROXY_ERROR",
           message:
-            error instanceof Error
-              ? error.message
-              : "Failed to connect to upstream API service.",
+            error instanceof Error ? error.message : "Failed to connect to upstream API service.",
         },
       },
       { status: 502 },

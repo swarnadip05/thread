@@ -49,9 +49,10 @@ const nextConfig: NextConfig = {
     const isLocalhost = /(^|\/\/)(localhost|127\.0\.0\.1)(?::|\/|$)/i.test(rawBackendUrl);
     const backendUrl =
       process.env.NODE_ENV === "production" && isLocalhost
-        ? (process.env.BACKEND_API_URL && !/(^|\/\/)(localhost|127\.0\.0\.1)(?::|\/|$)/i.test(process.env.BACKEND_API_URL)
-            ? process.env.BACKEND_API_URL
-            : "https://thread-sfe5.onrender.com")
+        ? process.env.BACKEND_API_URL &&
+          !/(^|\/\/)(localhost|127\.0\.0\.1)(?::|\/|$)/i.test(process.env.BACKEND_API_URL)
+          ? process.env.BACKEND_API_URL
+          : "https://thread-sfe5.onrender.com"
         : rawBackendUrl;
 
     return [

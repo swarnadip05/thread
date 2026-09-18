@@ -3,10 +3,7 @@ import "dotenv/config";
 import pino from "pino";
 
 import { connectDatabase, disconnectDatabase } from "../../database/connection.js";
-import {
-  parseAdminPasswordResetEnvironment,
-  resetAdminPassword,
-} from "../reset-admin-password.js";
+import { parseAdminPasswordResetEnvironment, resetAdminPassword } from "../reset-admin-password.js";
 
 const logger = pino({ redact: ["password", "ADMIN_RESET_PASSWORD"] });
 

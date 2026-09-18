@@ -21,8 +21,8 @@ function normalizeApiOrigin(value: string | undefined): string {
     /(^|\/\/)(localhost|127\.0\.0\.1)(?::|\/|$)/i.test(normalized)
   ) {
     return typeof window !== "undefined"
-      ? (window.location?.origin || "")
-      : (process.env.BACKEND_API_URL || "https://thread-sfe5.onrender.com");
+      ? window.location?.origin || ""
+      : process.env.BACKEND_API_URL || "https://thread-sfe5.onrender.com";
   }
   // Older local environment files occasionally included the REST prefix.
   return normalized.replace(/\/api\/v1$/, "");

@@ -19,16 +19,16 @@ export interface ApiConfig {
   };
   readonly host: string;
   readonly email:
-    | { readonly provider: "local" }
-    | {
-        readonly provider: "smtp";
-        readonly host: string;
-        readonly port: number;
-        readonly secure: boolean;
-        readonly user: string;
-        readonly password: string;
-        readonly from: string;
-      };
+  | { readonly provider: "local" }
+  | {
+    readonly provider: "smtp";
+    readonly host: string;
+    readonly port: number;
+    readonly secure: boolean;
+    readonly user: string;
+    readonly password: string;
+    readonly from: string;
+  };
   readonly logLevel: string;
   readonly maxCartQuantity: number;
   readonly mongodbUri: string;
@@ -54,7 +54,7 @@ export interface ApiConfig {
 
 function parsePayments(
   environment: NodeJS.ProcessEnv,
-  nodeEnv: ApiConfig["nodeEnv"],
+  _nodeEnv: ApiConfig["nodeEnv"],
 ): Pick<ApiConfig, "paymentProvider" | "razorpay"> {
   const provider = environment.PAYMENT_PROVIDER?.trim() || "mock";
   if (provider === "mock" || provider !== "razorpay") return { paymentProvider: "mock" };
@@ -86,7 +86,7 @@ function parseBoolean(value: string | undefined, name: string): boolean {
 
 function parseEmail(
   environment: NodeJS.ProcessEnv,
-  nodeEnv: ApiConfig["nodeEnv"],
+  _nodeEnv: ApiConfig["nodeEnv"],
 ): ApiConfig["email"] {
   const provider = environment.EMAIL_PROVIDER?.trim() || "local";
   if (provider === "local") {
@@ -256,11 +256,11 @@ export function loadApiConfig(environment: NodeJS.ProcessEnv = process.env): Api
     accessTokenTtlSeconds: 15 * 60,
     ...(parseOptionalHttpsUrl(environment.ALERT_WEBHOOK_URL, "ALERT_WEBHOOK_URL")
       ? {
-          alertWebhookUrl: parseOptionalHttpsUrl(
-            environment.ALERT_WEBHOOK_URL,
-            "ALERT_WEBHOOK_URL",
-          )!,
-        }
+        alertWebhookUrl: parseOptionalHttpsUrl(
+          environment.ALERT_WEBHOOK_URL,
+          "ALERT_WEBHOOK_URL",
+        )!,
+      }
       : {}),
     ...(environment.COOKIE_DOMAIN?.trim()
       ? { cookieDomain: environment.COOKIE_DOMAIN.trim() }

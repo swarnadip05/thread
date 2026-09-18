@@ -148,12 +148,16 @@ async function start(): Promise<void> {
     await connectDatabase(config.mongodbUri, logger);
     if (process.env.ADMIN_BOOTSTRAP_CONFIRM === "CREATE_THREAD_SUPER_ADMIN") {
       try {
-        const { bootstrapAdmin, parseBootstrapEnvironment } = await import("./auth/bootstrap-admin.js");
+        const { bootstrapAdmin, parseBootstrapEnvironment } =
+          await import("./auth/bootstrap-admin.js");
         const input = parseBootstrapEnvironment(process.env);
         const result = await bootstrapAdmin(input);
         logger.info({ result }, "Auto-bootstrap admin check completed");
-      } catch (err: any) {
-        logger.warn({ err: err?.message || err }, "Auto-bootstrap admin skipped");
+      } catch (err: unknown) {
+        logger.warn(
+          { err: err instanceof Error ? err.message : String(err) },
+          "Auto-bootstrap admin skipped",
+        );
       }
     }
     await checkoutComposition.startJobProducer();

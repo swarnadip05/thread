@@ -1,0 +1,110 @@
+[
+  {
+    "title": "Signature Heavyweight Oversized T-Shirt",
+    "slug": "signature-heavyweight-oversized-t-shirt",
+    "shortDescription": "240 GSM 100% combed cotton with dropped shoulders and a boxy streetwear cut.",
+    "descriptionHtml": "<p>Crafted from premium 240 GSM combed cotton, the Signature Heavyweight Oversized Tee delivers an effortless streetwear drape. Built with reinforced ribbed necklines and pre-shrunk fabric to retain its structure through repeated wears.</p><ul><li>240 GSM 100% Combed Cotton</li><li>Boxy oversized silhouette with dropped shoulders</li><li>Bio-washed for ultra-soft hand feel</li><li>Pre-shrunk to minimize shrinkage</li></ul>",
+    "categorySlug": "oversized-t-shirts",
+    "audience": "men",
+    "brand": "THREAD",
+    "fit": "Oversized",
+    "fabricWeightGsm": 240,
+    "tags": ["oversized", "heavyweight", "streetwear", "bestseller", "cotton"],
+    "featured": true,
+    "newArrival": true,
+    "mrp": 899,
+    "salePrice": 649,
+    "colour": "Jet Black",
+    "colourHex": "#111111",
+    "sizes": ["S", "M", "L", "XL", "XXL"],
+    "stockPerSize": 50,
+    "images": [
+      {
+        "src": "/assets/approved/client-products/men/oversized/style-01/image-01.jpg",
+        "alt": "THREAD Signature Heavyweight Oversized T-Shirt - Front View"
+      },
+      {
+        "src": "/assets/approved/client-products/men/oversized/style-01/image-02.jpg",
+        "alt": "THREAD Signature Heavyweight Oversized T-Shirt - Back View"
+      }
+    ]
+  },
+  {
+    "title": "Vintage Wash Graphic Oversized Tee",
+    "slug": "vintage-wash-graphic-oversized-tee",
+    "shortDescription": "Acid-wash finish with high-density DTF chest artwork.",
+    "descriptionHtml": "<p>Turn heads with our Vintage Wash Graphic Tee. Featuring custom high-definition DTF artwork that will not crack or fade, set against an acid-washed charcoal fabric for that authentic retro look.</p><ul><li>220 GSM French Terry Cotton</li><li>Fade-resistant high-density screen/DTF print</li><li>Relaxed ribbed crew neck</li><li>Designed for everyday comfort</li></ul>",
+    "categorySlug": "oversized-t-shirts",
+    "audience": "men",
+    "brand": "THREAD",
+    "fit": "Oversized",
+    "fabricWeightGsm": 220,
+    "tags": ["graphic", "oversized", "vintage", "trending"],
+    "featured": true,
+    "newArrival": true,
+    "mrp": 999,
+    "salePrice": 749,
+    "colour": "Washed Charcoal",
+    "colourHex": "#2D2D2D",
+    "sizes": ["S", "M", "L", "XL", "XXL"],
+    "stockPerSize": 45,
+    "images": [
+      {
+        "src": "/assets/approved/client-products/men/oversized/style-02/image-01.jpg",
+        "alt": "THREAD Vintage Wash Graphic Oversized Tee"
+      }
+    ]
+  },
+  {
+    "title": "Minimalist Embroidered Boxy Tee",
+    "slug": "minimalist-embroidered-boxy-tee",
+    "shortDescription": "Clean aesthetic with subtle tonal chest embroidery in premium French terry.",
+    "descriptionHtml": "<p>A clean wardrobe staple. Featuring subtle tonal embroidery on the chest and an elevated boxy cut that pairs with any bottoms.</p><ul><li>200 GSM Pure Ringspun Cotton</li><li>Precision tonal chest embroidery</li><li>Seamless double-needle collar</li><li>Tailored for a relaxed contemporary fit</li></ul>",
+    "categorySlug": "oversized-t-shirts",
+    "audience": "women",
+    "brand": "THREAD",
+    "fit": "Oversized",
+    "fabricWeightGsm": 200,
+    "tags": ["minimalist", "women", "oversized", "cotton"],
+    "featured": true,
+    "newArrival": true,
+    "mrp": 849,
+    "salePrice": 599,
+    "colour": "Off White",
+    "colourHex": "#FAF9F6",
+    "sizes": ["XS", "S", "M", "L", "XL"],
+    "stockPerSize": 40,
+    "images": [
+      {
+        "src": "/assets/approved/client-products/women/oversized/style-01/image-01.jpg",
+        "alt": "THREAD Minimalist Embroidered Boxy Tee"
+      }
+    ]
+  },
+  {
+    "title": "Classic Crew Neck Everyday Tee",
+    "slug": "classic-crew-neck-everyday-tee",
+    "shortDescription": "180 GSM breathable ringspun cotton designed for all-day daily wear.",
+    "descriptionHtml": "<p>The foundation of every great outfit. Our Classic Fit Tee is crafted with 180 GSM super-combed cotton for breathable, cloud-soft comfort that lasts morning till night.</p><ul><li>180 GSM 100% Super-Combed Cotton</li><li>Regular tailored fit</li><li>Breathable, featherlight drape</li><li>Machine wash friendly</li></ul>",
+    "categorySlug": "classic-fit-t-shirts",
+    "audience": "unisex",
+    "brand": "THREAD",
+    "fit": "Regular",
+    "fabricWeightGsm": 180,
+    "tags": ["classic", "basics", "essential", "dailywear"],
+    "featured": false,
+    "newArrival": true,
+    "mrp": 699,
+    "salePrice": 499,
+    "colour": "Navy Blue",
+    "colourHex": "#1B263B",
+    "sizes": ["S", "M", "L", "XL", "XXL"],
+    "stockPerSize": 60,
+    "images": [
+      {
+        "src": "/assets/approved/client-products/men/oversized/style-03/image-01.jpg",
+        "alt": "THREAD Classic Crew Neck Everyday Tee"
+      }
+    ]
+  }
+]

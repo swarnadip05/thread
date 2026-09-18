@@ -20,6 +20,16 @@ export function ProductCard({ product }: { product: ProductSummaryDto }) {
           ),
         )
       : 0;
+
+  const STANDARD_SIZES = ["S", "M", "L", "XL", "2XL"] as const;
+  const isAccessory = product.audience === "accessories";
+  const displaySizes =
+    product.sizes && product.sizes.length > 0
+      ? product.sizes
+      : isAccessory
+        ? ["One Size"]
+        : STANDARD_SIZES;
+
   return (
     <article className="group relative min-w-0">
       <div className="absolute right-2 top-2 z-raised">
@@ -75,49 +85,73 @@ export function ProductCard({ product }: { product: ProductSummaryDto }) {
             </span>
           ) : null}
         </div>
-        <div className="pt-3">
-          <h2 className="line-clamp-1 text-sm font-semibold sm:text-base">{product.title}</h2>
-          <p className="mt-1 line-clamp-1 text-xs text-muted sm:text-sm">
-            {product.fit ?? product.shortDescription}
-          </p>
-          <div className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm">
-            <Price amount={product.minSalePricePaise} />
-            {discount > 0 ? (
-              <>
-                <Price
-                  amount={product.minMrpPaise}
-                  className="text-xs font-normal text-muted line-through"
-                />
-                <span className="text-xs font-semibold text-success">{discount}% off</span>
-              </>
-            ) : null}
-          </div>
-          {discount > 0 ? (
-            <span className="mt-2 inline-flex rounded-sm bg-gold/15 px-2 py-1 text-[0.65rem] font-bold uppercase tracking-wide">
-              Sale
-            </span>
-          ) : null}
-          {product.colours.length ? (
-            <div
-              className="mt-3 flex items-center gap-1.5"
-              aria-label="Available colours"
-              role="list"
+      </Link>
+
+      {/* Size Buttons Under the Picture with Size Tag on the Side */}
+      <div className="mt-2.5 flex items-center gap-1.5 overflow-hidden">
+        <span className="shrink-0 rounded bg-charcoal/5 px-1.5 py-0.5 text-[0.62rem] font-bold uppercase tracking-wider text-muted border border-ink/10">
+          SIZE
+        </span>
+        <div
+          className="flex flex-wrap items-center gap-1"
+          aria-label="Available sizes"
+          role="group"
+        >
+          {displaySizes.map((sz) => (
+            <Link
+              key={sz}
+              href={`${productHref(product.slug)}?size=${encodeURIComponent(sz)}`}
+              className="inline-flex min-w-6 h-5.5 items-center justify-center rounded border border-ink/15 bg-paper px-1.5 text-[0.65rem] font-semibold text-charcoal shadow-xs transition-all duration-fast hover:border-ink hover:bg-ink hover:text-paper active:scale-95 focus-ring"
+              title={`Select size ${sz}`}
             >
-              {product.colours.slice(0, 5).map((colour) => (
-                <span
-                  key={colour.name}
-                  className="size-4 rounded-full border border-ink/20 bg-ivory shadow-[inset_0_0_0_1px_rgb(255_255_255/.7)]"
-                  role="listitem"
-                  style={colour.hex ? { backgroundColor: colour.hex } : undefined}
-                  title={colour.name}
-                />
-              ))}
-              {product.colours.length > 5 ? (
-                <span className="text-[0.65rem] text-muted">+{product.colours.length - 5}</span>
-              ) : null}
-            </div>
+              {sz}
+            </Link>
+          ))}
+        </div>
+      </div>
+
+      <Link href={productHref(product.slug)} className="focus-ring block pt-2" tabIndex={-1}>
+        <h2 className="line-clamp-1 text-sm font-semibold sm:text-base">{product.title}</h2>
+        <p className="mt-1 line-clamp-1 text-xs text-muted sm:text-sm">
+          {product.fit ?? product.shortDescription}
+        </p>
+        <div className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm">
+          <Price amount={product.minSalePricePaise} />
+          {discount > 0 ? (
+            <>
+              <Price
+                amount={product.minMrpPaise}
+                className="text-xs font-normal text-muted line-through"
+              />
+              <span className="text-xs font-semibold text-success">{discount}% off</span>
+            </>
           ) : null}
         </div>
+        {discount > 0 ? (
+          <span className="mt-2 inline-flex rounded-sm bg-gold/15 px-2 py-1 text-[0.65rem] font-bold uppercase tracking-wide">
+            Sale
+          </span>
+        ) : null}
+        {product.colours.length ? (
+          <div
+            className="mt-3 flex items-center gap-1.5"
+            aria-label="Available colours"
+            role="list"
+          >
+            {product.colours.slice(0, 5).map((colour) => (
+              <span
+                key={colour.name}
+                className="size-4 rounded-full border border-ink/20 bg-ivory shadow-[inset_0_0_0_1px_rgb(255_255_255/.7)]"
+                role="listitem"
+                style={colour.hex ? { backgroundColor: colour.hex } : undefined}
+                title={colour.name}
+              />
+            ))}
+            {product.colours.length > 5 ? (
+              <span className="text-[0.65rem] text-muted">+{product.colours.length - 5}</span>
+            ) : null}
+          </div>
+        ) : null}
       </Link>
     </article>
   );

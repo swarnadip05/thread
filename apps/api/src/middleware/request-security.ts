@@ -10,9 +10,13 @@ export const requireJsonContentType: RequestHandler = (request, _response, next)
   const hasBody =
     (Number.isFinite(contentLength) && contentLength > 0) ||
     request.headers["transfer-encoding"] !== undefined;
-  if (hasBody && !request.is("application/json"))
+  if (hasBody && !request.is("application/json") && !request.is("multipart/form-data"))
     return next(
-      new HttpError(415, "UNSUPPORTED_MEDIA_TYPE", "Request body must use application/json."),
+      new HttpError(
+        415,
+        "UNSUPPORTED_MEDIA_TYPE",
+        "Request body must use application/json or multipart/form-data.",
+      ),
     );
   next();
 };

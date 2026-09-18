@@ -25,7 +25,10 @@ import { ProductViewAnalytics } from "@/analytics/product-view-analytics";
 import { catalogueUnavailableMessage } from "@/config/api-url";
 import { jsonLd, siteUrl } from "@/seo/site";
 
-type PageProps = { params: Promise<{ slug: string }> };
+type PageProps = {
+  params: Promise<{ slug: string }>;
+  searchParams?: Promise<{ size?: string }>;
+};
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
@@ -46,8 +49,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   };
 }
 
-export default async function ProductDetailPage({ params }: PageProps) {
+export default async function ProductDetailPage({ params, searchParams }: PageProps) {
   const { slug } = await params;
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const initialSize = resolvedSearchParams?.size;
   const [data, shipping, returns, settings] = await Promise.all([
     loadProductDetail(slug),
     loadContentPage("shipping-delivery"),
@@ -129,7 +134,12 @@ export default async function ProductDetailPage({ params }: PageProps) {
         <span>{product.title}</span>
       </nav>
       <div className="mt-6 grid gap-10 lg:grid-cols-[minmax(0,1.15fr)_minmax(22rem,.85fr)] xl:gap-16">
-        <ProductGallery media={product.media} title={product.title} />
+        <ProductGallery
+          initialSize={initialSize}
+          media={product.media}
+          sizes={product.variants.map((v) => (v.size.toUpperCase() === "XXL" ? "2XL" : v.size))}
+          title={product.title}
+        />
         <section>
           <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted">
             {product.brand}
@@ -160,6 +170,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
           </div>
           <div className="mt-6">
             <ProductPurchasePanel
+              initialSize={initialSize}
               maxQuantity={data.purchaseConfig.maxQuantity}
               product={product}
               productUrl={`${siteUrl}/shop/${encodeURIComponent(product.slug)}`}

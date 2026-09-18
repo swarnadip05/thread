@@ -106,7 +106,10 @@ export function DesktopMegaNavigation({ items }: { items: readonly NavigationIte
           >
             <section>
               <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Shop</h2>
-              <Link className="focus-ring mt-5 inline-block rounded-sm text-sm font-semibold underline-offset-4 hover:underline" href={departmentHref}>
+              <Link
+                className="focus-ring mt-5 inline-block rounded-sm text-sm font-semibold underline-offset-4 hover:underline"
+                href={departmentHref}
+              >
                 Shop all {activeItem.label}
               </Link>
             </section>

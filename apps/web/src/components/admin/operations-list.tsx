@@ -293,6 +293,18 @@ export function OperationsList({ module }: { readonly module: Module }) {
                         <span className="block text-xs text-muted">
                           {item.colour} / {item.size}
                         </span>
+                        {item.attributes && Object.keys(item.attributes).length > 0 ? (
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {Object.entries(item.attributes).map(([k, v]) => (
+                              <span
+                                key={k}
+                                className="inline-flex items-center rounded bg-ink/5 px-1.5 py-0.5 text-[10px] text-muted border border-ink/5"
+                              >
+                                <strong className="font-semibold text-ink/80 mr-1">{k}:</strong> {v}
+                              </span>
+                            ))}
+                          </div>
+                        ) : null}
                       </td>
                       <td className="p-4">
                         <Badge variant={item.lowStock ? "error" : "success"}>

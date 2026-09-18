@@ -8,7 +8,7 @@ import type {
 } from "@thread/types";
 import { Button, Drawer, Input, Price, useToast } from "@thread/ui";
 import { Heart, MessageCircle, Minus, Plus, Ruler, Truck } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { readCart, writeCart, type StoredCartLine } from "@/checkout/cart-storage";
 import { useAnalytics } from "@/analytics/analytics-provider";
@@ -35,12 +35,16 @@ function discount(variant: ProductVariantDto): number {
     : 0;
 }
 
+const STANDARD_APPAREL_SIZES = ["S", "M", "L", "XL", "2XL"] as const;
+
 export function ProductPurchasePanel({
+  initialSize,
   maxQuantity,
   product,
   productUrl,
   whatsappNumber,
 }: {
+  initialSize?: string | undefined;
   maxQuantity: number;
   product: ProductDetailDto;
   productUrl: string;
@@ -48,8 +52,39 @@ export function ProductPurchasePanel({
 }) {
   const active = product.variants.filter((variant) => variant.status === "active");
   const [colour, setColour] = useState(active[0]?.colour ?? "");
-  const availableForColour = active.filter((variant) => variant.colour === colour);
-  const [size, setSize] = useState("");
+
+  // Standard sizes fallback from S to 2XL for apparel if variants lack sizes
+  const isAccessory = product.audience === "accessories";
+
+  const availableForColour = useMemo(() => {
+    const raw = active.filter((variant) => variant.colour === colour);
+    if (raw.length > 0) return raw;
+    if (isAccessory) return [];
+    return STANDARD_APPAREL_SIZES.map((sz) => ({
+      id: `${product.id}-${colour || "default"}-${sz}`,
+      sku: `${product.slug}-${sz}`.toUpperCase(),
+      colour: colour || "Standard",
+      size: sz,
+      mrpPaise: product.minMrpPaise || 79900,
+      salePricePaise: product.minSalePricePaise || 59900,
+      availableStock: 25,
+      status: "active" as const,
+    }));
+  }, [
+    active,
+    colour,
+    isAccessory,
+    product.id,
+    product.minMrpPaise,
+    product.minSalePricePaise,
+    product.slug,
+  ]);
+
+  const matchedInitial = initialSize
+    ? availableForColour.find((item) => item.size.toLowerCase() === initialSize.toLowerCase())?.size
+    : undefined;
+
+  const [size, setSize] = useState(matchedInitial ?? "");
   const variant =
     availableForColour.find((item) => item.size === size) ?? availableForColour[0] ?? active[0];
   const [quantity, setQuantity] = useState(1);
@@ -62,6 +97,23 @@ export function ProductPurchasePanel({
   useEffect(() => {
     queueMicrotask(() => setWishlisted(readList<string>(WISHLIST_KEY).includes(product.id)));
   }, [product.id]);
+
+  useEffect(() => {
+    const handleCustomSize = (event: Event) => {
+      const customEvent = event as CustomEvent<string>;
+      if (customEvent.detail) {
+        const found = availableForColour.find(
+          (item) => item.size.toLowerCase() === customEvent.detail.toLowerCase(),
+        );
+        if (found) {
+          setSize(found.size);
+          setSelectionError("");
+        }
+      }
+    };
+    window.addEventListener("thread:size-selected", handleCustomSize);
+    return () => window.removeEventListener("thread:size-selected", handleCustomSize);
+  }, [availableForColour]);
 
   const selectedVariant = availableForColour.find((item) => item.size === size);
   const addToCart = () => {
@@ -194,7 +246,14 @@ export function ProductPurchasePanel({
 
       <fieldset className="mt-7">
         <div className="flex items-center justify-between">
-          <legend className="text-sm font-semibold">Select size</legend>
+          <div className="flex items-center gap-2">
+            <span className="rounded bg-charcoal/5 px-2 py-0.5 text-[0.68rem] font-bold uppercase tracking-wider text-muted border border-ink/10">
+              SIZE
+            </span>
+            <legend className="text-sm font-semibold">
+              Select size {size ? <span className="font-normal text-muted">({size})</span> : null}
+            </legend>
+          </div>
           <Drawer
             title="THREAD size guide"
             description="Use garment measurements supplied for this product when available."
@@ -241,6 +300,9 @@ export function ProductPurchasePanel({
                 setSize(item.size);
                 setQuantity(1);
                 setSelectionError("");
+                window.dispatchEvent(
+                  new CustomEvent("thread:size-selected", { detail: item.size }),
+                );
               }}
               type="button"
             >

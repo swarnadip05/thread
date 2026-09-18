@@ -11,6 +11,8 @@ import { MongooseReviewRepository } from "./reviews/review.repository.js";
 import { MongoosePurchaseVerificationProvider, ReviewService } from "./reviews/review.service.js";
 import type { CommerceJobQueue } from "../notifications/jobs/commerce-job.queue.js";
 
+import { ProductImportService } from "./product-import.service.js";
+
 export function composeCatalogue(
   config: ApiConfig,
   authenticateAdmin: RequestHandler,
@@ -27,6 +29,7 @@ export function composeCatalogue(
     new ProductPreviewTokenService(config.productPreviewSecret),
     jobs,
   );
+  const importService = new ProductImportService(audits);
   return createCatalogueRouter(
     service,
     new ReviewService(
@@ -40,5 +43,6 @@ export function composeCatalogue(
       maxCartQuantity: config.maxCartQuantity,
       webOrigin: config.webOrigin,
     },
+    importService,
   );
 }

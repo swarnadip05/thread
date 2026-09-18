@@ -33,12 +33,9 @@ describe("admin password reset environment", () => {
     ).toThrow("ADMIN_RESET_CONFIRM=RESET_THREAD_ADMIN_PASSWORD");
   });
 
-  it.each(["ADMIN_RESET_EMAIL", "ADMIN_RESET_PASSWORD"] as const)(
-    "requires a valid %s",
-    (name) => {
-      expect(() =>
-        parseAdminPasswordResetEnvironment({ ...validEnvironment, [name]: undefined }),
-      ).toThrow("Invalid ADMIN_RESET_* values");
-    },
-  );
+  it.each(["ADMIN_RESET_EMAIL", "ADMIN_RESET_PASSWORD"] as const)("requires a valid %s", (name) => {
+    expect(() =>
+      parseAdminPasswordResetEnvironment({ ...validEnvironment, [name]: undefined }),
+    ).toThrow("Invalid ADMIN_RESET_* values");
+  });
 });

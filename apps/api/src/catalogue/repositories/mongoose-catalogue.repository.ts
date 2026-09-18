@@ -94,6 +94,13 @@ function summaryDto(product: AggregateProduct): ProductSummaryDto {
     ...(primary ? { primaryImage: mediaDto(primary) } : {}),
     ...(secondary ? { secondaryImage: mediaDto(secondary) } : {}),
     colours,
+    sizes: Array.from(
+      new Set(
+        product.variants
+          .filter((v) => v.status === "active")
+          .map((v) => (v.size.toUpperCase() === "XXL" ? "2XL" : v.size)),
+      ),
+    ),
     minMrpPaise: product.minMrpPaise,
     minSalePricePaise: product.minSalePricePaise,
     ratingAverage: product.rating.average,

@@ -1,7 +1,7 @@
-import baseConfig from "@thread/config/eslint/base";
+import nodeConfig from "@thread/config/eslint/node";
 
 export default [
-  ...baseConfig,
+  ...nodeConfig,
   {
     ignores: ["apps/**", "packages/**", "pictures/**"],
   },
