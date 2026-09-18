@@ -1038,19 +1038,19 @@ export class ProductImportService {
     ).lean();
 
     await ShippingMethodModel.findOneAndUpdate(
-      { name: "Standard Delivery" },
+      { name: "Free Delivery" },
       {
         $set: {
           ratePaise: 0,
-          description: "Standard delivery across India.",
+          description: "No extra charges.",
           codEligible: true,
           active: true,
         },
         $setOnInsert: {
-          name: "Standard Delivery",
+          name: "Free Delivery",
           freeShippingThresholdPaise: null,
-          estimatedBusinessDaysMin: 4,
-          estimatedBusinessDaysMax: 7,
+          estimatedBusinessDaysMin: 5,
+          estimatedBusinessDaysMax: 8,
           countries: ["India"],
           postalPrefixes: [],
           sortOrder: 1,
@@ -1060,19 +1060,19 @@ export class ProductImportService {
     );
 
     await ShippingMethodModel.findOneAndUpdate(
-      { name: "Super Fast Delivery" },
+      { name: "Standard Delivery" },
       {
         $set: {
-          ratePaise: 3000, // ₹30 extra
-          description: "Priority expedited delivery.",
+          ratePaise: 2500, // ₹25 standard delivery charge
+          description: "Standard delivery across India.",
           codEligible: true,
           active: true,
         },
         $setOnInsert: {
-          name: "Super Fast Delivery",
+          name: "Standard Delivery",
           freeShippingThresholdPaise: null,
-          estimatedBusinessDaysMin: 1,
-          estimatedBusinessDaysMax: 3,
+          estimatedBusinessDaysMin: 3,
+          estimatedBusinessDaysMax: 6,
           countries: ["India"],
           postalPrefixes: [],
           sortOrder: 2,

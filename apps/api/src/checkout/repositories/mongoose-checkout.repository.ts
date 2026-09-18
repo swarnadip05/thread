@@ -923,7 +923,8 @@ export class MongooseCheckoutRepository implements CheckoutRepository {
     const dbSession = await mongoose.startSession();
     try {
       let output: OrderDto | null = null;
-      await dbSession.withTransaction(async () => {
+      try {
+        await dbSession.withTransaction(async () => {
         const checkout = await CheckoutSessionModel.findOne({
           _id: input.sessionId,
           status: "active",
@@ -1091,6 +1092,9 @@ export class MongooseCheckoutRepository implements CheckoutRepository {
         await checkout.save({ session: dbSession });
         output = orderDto(confirmedOrder);
       });
+      } catch (err: any) {
+        throw new HttpError(400, "DEBUG_ERROR", err?.message || String(err));
+      }
       if (!output)
         throw new HttpError(500, "ORDER_CONFIRM_FAILED", "Order could not be confirmed.");
       return output;
