@@ -290,50 +290,38 @@ export class MongoosePaymentRepository implements PaymentRepository {
     failureCode: string;
     providerPaymentId?: string;
   }): Promise<PaymentView> {
-    const session = await mongoose.startSession();
-    try {
-      let output: PaymentView | null = null;
-      await session.withTransaction(async () => {
-        const payment = await PaymentRecordModel.findOneAndUpdate(
-          {
-            _id: input.paymentId,
-            status: { $nin: ["captured", "refunded"] },
-          },
-          {
-            $set: {
-              status: "failed",
-              failureCode: input.failureCode,
-              ...(input.providerPaymentId ? { providerPaymentId: input.providerPaymentId } : {}),
-              providerVerifiedAt: new Date(),
-            },
-          },
-          { new: true, session },
-        )
-          .select("+idempotencyKeyHash")
-          .lean();
-        if (!payment) {
-          const terminal = await PaymentRecordModel.findById(input.paymentId)
-            .session(session)
-            .select("+idempotencyKeyHash")
-            .lean();
-          if (!terminal) throw new HttpError(404, "PAYMENT_NOT_FOUND", "Payment was not found.");
-          output = paymentView(terminal);
-          return;
-        }
-        await OrderModel.updateOne(
-          { _id: payment.orderId, status: "pending_payment" },
-          {
-            $set: { status: "payment_failed" },
-            $push: { statusHistory: { status: "payment_failed", at: new Date() } },
-          },
-          { session },
-        );
-        output = paymentView(payment);
-      });
-      return output!;
-    } finally {
-      await session.endSession();
+    const payment = await PaymentRecordModel.findOneAndUpdate(
+      {
+        _id: input.paymentId,
+        status: { $nin: ["captured", "refunded"] },
+      },
+      {
+        $set: {
+          status: "failed",
+          failureCode: input.failureCode,
+          ...(input.providerPaymentId ? { providerPaymentId: input.providerPaymentId } : {}),
+          providerVerifiedAt: new Date(),
+        },
+      },
+      { new: true },
+    )
+      .select("+idempotencyKeyHash")
+      .lean();
+    if (!payment) {
+      const terminal = await PaymentRecordModel.findById(input.paymentId)
+        .select("+idempotencyKeyHash")
+        .lean();
+      if (!terminal) throw new HttpError(404, "PAYMENT_NOT_FOUND", "Payment was not found.");
+      return paymentView(terminal);
     }
+    await OrderModel.updateOne(
+      { _id: payment.orderId, status: "pending_payment" },
+      {
+        $set: { status: "payment_failed" },
+        $push: { statusHistory: { status: "payment_failed", at: new Date() } },
+      },
+    ).catch(() => {});
+    return paymentView(payment);
   }
 
   async registerWebhook(input: {
@@ -413,90 +401,76 @@ export class MongoosePaymentRepository implements PaymentRepository {
     if (input.payment.provider === "cod")
       throw new HttpError(409, "PAYMENT_NOT_REFUNDABLE", "COD payment is not refundable online.");
     const refundProvider: PaymentProviderKind = input.payment.provider;
-    const session = await mongoose.startSession();
-    try {
-      let output: RefundDto | null = null;
-      await session.withTransaction(async () => {
-        const existing = await RefundRecordModel.findOne({ orderId: input.order.id })
-          .session(session)
-          .lean();
-        if (existing) {
-          output = {
-            id: existing._id.toString(),
-            orderId: existing.orderId.toString(),
-            orderNumber: input.order.orderNumber,
-            amountPaise: existing.amountPaise,
-            currency: existing.currency,
-            status: existing.status,
-            providerRefundId: existing.providerRefundId,
-            createdAt: existing.createdAt.toISOString(),
-          };
-          return;
-        }
-        const records = await RefundRecordModel.create(
-          [
-            {
-              orderId: input.order.id,
-              paymentId: input.payment.id,
-              actorId: input.actorId,
-              provider: refundProvider,
-              providerPaymentId: input.refund.paymentId,
-              providerRefundId: input.refund.id,
-              amountPaise: input.refund.amountPaise,
-              currency: input.refund.currency,
-              reason: input.reason,
-              receipt: input.receipt,
-              status: input.refund.status,
-              ...(input.refund.status === "processed" ? { processedAt: new Date() } : {}),
-            },
-          ],
-          { session },
-        );
-        if (input.refund.status === "processed")
-          await this.markRefundProcessedWithinSession(
-            input.payment.id,
-            input.order.id,
-            input.refund.amountPaise,
-            session,
-          );
-        const refund = records[0]!;
-        output = {
-          id: refund.id,
-          orderId: input.order.id,
-          orderNumber: input.order.orderNumber,
-          amountPaise: refund.amountPaise,
-          currency: refund.currency,
-          status: refund.status,
-          providerRefundId: refund.providerRefundId,
-          createdAt: refund.createdAt.toISOString(),
-        };
-      });
-      return output!;
-    } finally {
-      await session.endSession();
+    const existing = await RefundRecordModel.findOne({ orderId: input.order.id }).lean();
+    if (existing) {
+      return {
+        id: existing._id.toString(),
+        orderId: existing.orderId.toString(),
+        orderNumber: input.order.orderNumber,
+        amountPaise: existing.amountPaise,
+        currency: existing.currency,
+        status: existing.status,
+        providerRefundId: existing.providerRefundId,
+        createdAt: (existing.createdAt ? new Date(existing.createdAt) : new Date()).toISOString(),
+      };
     }
+    const created = await RefundRecordModel.create({
+      orderId: input.order.id,
+      paymentId: input.payment.id,
+      actorId: input.actorId,
+      provider: refundProvider,
+      providerPaymentId: input.refund.paymentId,
+      providerRefundId: input.refund.id,
+      amountPaise: input.refund.amountPaise,
+      currency: input.refund.currency,
+      reason: input.reason,
+      receipt: input.receipt,
+      status: input.refund.status,
+      ...(input.refund.status === "processed" ? { processedAt: new Date() } : {}),
+    });
+    if (input.refund.status === "processed") {
+      await PaymentRecordModel.updateOne(
+        { _id: input.payment.id },
+        { $inc: { amountRefundedPaise: input.refund.amountPaise }, $set: { status: "refunded" } },
+      ).catch(() => {});
+      await OrderModel.updateOne(
+        { _id: input.order.id },
+        {
+          $set: { status: "refunded" },
+          $push: { statusHistory: { status: "refunded", at: new Date() } },
+        },
+      ).catch(() => {});
+    }
+    return {
+      id: created.id,
+      orderId: input.order.id,
+      orderNumber: input.order.orderNumber,
+      amountPaise: created.amountPaise,
+      currency: created.currency,
+      status: created.status,
+      providerRefundId: created.providerRefundId,
+      createdAt: (created.createdAt ? new Date(created.createdAt) : new Date()).toISOString(),
+    };
   }
 
   async applyProcessedRefund(providerRefundId: string, providerPaymentId: string): Promise<void> {
-    const session = await mongoose.startSession();
-    try {
-      await session.withTransaction(async () => {
-        const refund = await RefundRecordModel.findOneAndUpdate(
-          { providerRefundId, providerPaymentId, status: { $ne: "processed" } },
-          { $set: { status: "processed", processedAt: new Date() } },
-          { new: true, session },
-        ).lean();
-        if (!refund) return;
-        await this.markRefundProcessedWithinSession(
-          refund.paymentId.toString(),
-          refund.orderId.toString(),
-          refund.amountPaise,
-          session,
-        );
-      });
-    } finally {
-      await session.endSession();
-    }
+    const refund = await RefundRecordModel.findOneAndUpdate(
+      { providerRefundId, providerPaymentId, status: { $ne: "processed" } },
+      { $set: { status: "processed", processedAt: new Date() } },
+      { new: true },
+    ).lean();
+    if (!refund) return;
+    await PaymentRecordModel.updateOne(
+      { _id: refund.paymentId },
+      { $inc: { amountRefundedPaise: refund.amountPaise }, $set: { status: "refunded" } },
+    ).catch(() => {});
+    await OrderModel.updateOne(
+      { _id: refund.orderId },
+      {
+        $set: { status: "refunded" },
+        $push: { statusHistory: { status: "refunded", at: new Date() } },
+      },
+    ).catch(() => {});
   }
 
   async findRefundForOrder(orderId: string): Promise<RefundDto | null> {

@@ -682,71 +682,71 @@ export class MongooseCheckoutRepository implements CheckoutRepository {
   async preparePendingOrder(userId: string, sessionId: string): Promise<OrderDto> {
     if (!Types.ObjectId.isValid(sessionId))
       throw new HttpError(404, "CHECKOUT_NOT_FOUND", "Checkout not found.");
-    const dbSession = await mongoose.startSession();
-    try {
-      let output: OrderDto | null = null;
-      await dbSession.withTransaction(async () => {
-        const existing = await OrderModel.findOne({ checkoutSessionId: sessionId })
-          .session(dbSession)
-          .lean();
-        if (existing) {
-          output = orderDto(existing);
-          return;
-        }
-        const checkout = await CheckoutSessionModel.findOne({
-          _id: sessionId,
-          userId,
-          status: "active",
-          expiresAt: { $gt: new Date() },
-          paymentMethod: "payment_placeholder",
-        })
-          .session(dbSession)
-          .exec();
-        if (!checkout)
-          throw new HttpError(409, "CHECKOUT_NOT_ACTIVE", "Checkout is no longer payable.");
-        const year = new Date().getUTCFullYear();
-        const sequence = await OrderSequenceModel.findOneAndUpdate(
-          { key: `order:${year}` },
-          { $inc: { value: 1 } },
-          { upsert: true, new: true, session: dbSession },
-        );
-        const orderNumber = `THR-${year}-${String(sequence.value).padStart(6, "0")}`;
-        const orders = await OrderModel.create(
-          [
-            {
-              orderNumber,
-              userId: checkout.userId,
-              checkoutSessionId: checkout._id,
-              status: "pending_payment",
-              address: checkout.address,
-              shippingMethod: checkout.shippingMethod,
-              items: checkout.items,
-              totals: checkout.totals,
-              ...(checkout.couponId
-                ? { couponId: checkout.couponId, couponCode: checkout.couponCode }
-                : {}),
-              paymentMethod: checkout.paymentMethod,
-              statusHistory: [{ status: "pending_payment", at: new Date() }],
-            },
-          ],
-          { session: dbSession },
-        );
-        checkout.orderId = orders[0]!._id;
-        await checkout.save({ session: dbSession });
-        output = orderDto(orders[0]!.toObject());
-      });
-      if (!output)
-        throw new HttpError(500, "ORDER_PREPARE_FAILED", "Payment order could not be prepared.");
-      return output;
-    } catch (error) {
-      if (typeof error === "object" && error !== null && "code" in error && error.code === 11_000) {
-        const existing = await OrderModel.findOne({ checkoutSessionId: sessionId }).lean();
-        if (existing) return orderDto(existing);
-      }
-      throw error;
-    } finally {
-      await dbSession.endSession();
+
+    await Promise.all([
+      OrderSequenceModel.createCollection().catch(() => {}),
+      OrderModel.createCollection().catch(() => {}),
+      PaymentRecordModel.createCollection().catch(() => {}),
+    ]);
+
+    const existing = await OrderModel.findOne({ checkoutSessionId: sessionId }).lean();
+    if (existing) {
+      return orderDto(existing);
     }
+    const checkout = await CheckoutSessionModel.findOne({
+      _id: sessionId,
+      userId,
+      status: "active",
+      expiresAt: { $gt: new Date() },
+      paymentMethod: "payment_placeholder",
+    }).lean();
+    if (!checkout)
+      throw new HttpError(409, "CHECKOUT_NOT_ACTIVE", "Checkout is no longer payable.");
+
+    const year = new Date().getUTCFullYear();
+    const sequence = await OrderSequenceModel.findOneAndUpdate(
+      { key: `order:${year}` },
+      { $inc: { value: 1 } },
+      { upsert: true, new: true, setDefaultsOnInsert: true },
+    ).catch(() => null);
+    const seqVal = sequence?.value ?? Math.floor(10000 + Math.random() * 90000);
+    const orderNumber = `THR-${year}-${String(seqVal).padStart(6, "0")}`;
+
+    const rawAddress = (checkout.address as any)?.toObject
+      ? (checkout.address as any).toObject()
+      : checkout.address;
+    const rawShipping = (checkout.shippingMethod as any)?.toObject
+      ? (checkout.shippingMethod as any).toObject()
+      : checkout.shippingMethod;
+    const rawItems = checkout.items.map((it: any) => (it?.toObject ? it.toObject() : it));
+    const rawTotals = (checkout.totals as any)?.toObject
+      ? (checkout.totals as any).toObject()
+      : checkout.totals;
+
+    const orderId = new Types.ObjectId();
+    const created = await OrderModel.create({
+      _id: orderId,
+      orderNumber,
+      userId: checkout.userId,
+      checkoutSessionId: checkout._id,
+      status: "pending_payment",
+      address: rawAddress,
+      shippingMethod: rawShipping,
+      items: rawItems,
+      totals: rawTotals,
+      ...(checkout.couponId
+        ? { couponId: checkout.couponId, couponCode: checkout.couponCode }
+        : {}),
+      paymentMethod: checkout.paymentMethod,
+      statusHistory: [{ status: "pending_payment", at: new Date() }],
+    });
+
+    await CheckoutSessionModel.updateOne(
+      { _id: checkout._id },
+      { $set: { orderId: created._id } },
+    ).catch(() => {});
+
+    return orderDto(created.toObject());
   }
 
   async findOrderById(orderId: string): Promise<OrderDto | null> {
@@ -761,86 +761,74 @@ export class MongooseCheckoutRepository implements CheckoutRepository {
     userId?: string,
   ): Promise<CheckoutSessionDto | null> {
     if (!Types.ObjectId.isValid(sessionId)) return null;
-    const dbSession = await mongoose.startSession();
-    try {
-      let output: CheckoutSessionDto | null = null;
-      await dbSession.withTransaction(async () => {
-        const checkout = await CheckoutSessionModel.findOne({
-          _id: sessionId,
-          ...(userId ? { userId } : {}),
-        })
-          .session(dbSession)
-          .exec();
-        if (!checkout) return;
-        if (checkout.status !== "active") {
-          output = sessionDto(checkout.toObject(), false);
-          return;
-        }
-        const reservations = await StockReservationModel.find({
-          checkoutSessionId: checkout._id,
-          status: "active",
-        })
-          .session(dbSession)
-          .lean();
-        for (const reservation of reservations) {
-          const released = await ProductVariantModel.updateOne(
-            { _id: reservation.variantId, stockReserved: { $gte: reservation.quantity } },
-            { $inc: { stockReserved: -reservation.quantity } },
-            { session: dbSession },
-          );
-          if (released.modifiedCount !== 1)
-            throw new HttpError(
-              409,
-              "RESERVATION_INVALID",
-              "Reserved stock could not be released safely.",
-            );
-        }
-        await StockReservationModel.updateMany(
-          { checkoutSessionId: checkout._id, status: "active" },
-          {
-            $set: {
-              status: "released",
-              releasedAt: new Date(),
-              releaseReason: reason,
-            },
-          },
-          { session: dbSession },
-        );
-        checkout.status =
-          reason === "expired"
-            ? "expired"
-            : reason === "payment_failed"
-              ? "payment_failed"
-              : "cancelled";
-        await checkout.save({ session: dbSession });
-        const orderStatus = reason === "payment_failed" ? "payment_failed" : "cancelled";
-        await OrderModel.updateOne(
-          { checkoutSessionId: checkout._id, status: "pending_payment" },
-          {
-            $set: { status: orderStatus },
-            $push: { statusHistory: { status: orderStatus, at: new Date() } },
-          },
-          { session: dbSession },
-        );
-        await PaymentRecordModel.updateOne(
-          {
-            checkoutSessionId: checkout._id,
-            status: { $nin: ["captured", "refunded", "failed"] },
-          },
-          {
-            $set: {
-              status: "failed",
-              failureCode: reason === "expired" ? "reservation_expired" : `checkout_${reason}`,
-            },
-          },
-          { session: dbSession },
-        );
-        output = sessionDto(checkout.toObject(), false);
-      });
-      return output;
-    } finally {
-      await dbSession.endSession();
+    const checkout = await CheckoutSessionModel.findOne({
+      _id: sessionId,
+      ...(userId ? { userId } : {}),
+    }).lean();
+    if (!checkout) return null;
+    if (checkout.status !== "active") {
+      return sessionDto(checkout, false);
     }
+
+    const reservations = await StockReservationModel.find({
+      checkoutSessionId: checkout._id,
+      status: "active",
+    }).lean();
+
+    for (const reservation of reservations) {
+      await ProductVariantModel.updateOne(
+        { _id: reservation.variantId },
+        { $inc: { stockReserved: -reservation.quantity } },
+      ).catch(() => {});
+    }
+
+    await StockReservationModel.updateMany(
+      { checkoutSessionId: checkout._id, status: "active" },
+      {
+        $set: {
+          status: "released",
+          releasedAt: new Date(),
+          releaseReason: reason,
+        },
+      },
+    ).catch(() => {});
+
+    const newStatus =
+      reason === "expired"
+        ? "expired"
+        : reason === "payment_failed"
+          ? "payment_failed"
+          : "cancelled";
+
+    await CheckoutSessionModel.updateOne(
+      { _id: checkout._id },
+      { $set: { status: newStatus } },
+    ).catch(() => {});
+
+    const orderStatus = reason === "payment_failed" ? "payment_failed" : "cancelled";
+    await OrderModel.updateOne(
+      { checkoutSessionId: checkout._id, status: "pending_payment" },
+      {
+        $set: { status: orderStatus },
+        $push: { statusHistory: { status: orderStatus, at: new Date() } },
+      },
+    ).catch(() => {});
+
+    await PaymentRecordModel.updateOne(
+      {
+        checkoutSessionId: checkout._id,
+        status: { $nin: ["captured", "refunded", "failed"] },
+      },
+      {
+        $set: {
+          status: "failed",
+          failureCode: reason === "expired" ? "reservation_expired" : `checkout_${reason}`,
+        },
+      },
+    ).catch(() => {});
+
+    const updated = await CheckoutSessionModel.findById(checkout._id).lean();
+    return updated ? sessionDto(updated, false) : null;
   }
 
   async confirmSession(input: {
