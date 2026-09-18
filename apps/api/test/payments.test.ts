@@ -630,6 +630,11 @@ describe("payment environment", () => {
     expect(() =>
       loadApiConfig({
         NODE_ENV: "production",
+        MONGODB_URI: "mongodb://localhost:27017/thread-test",
+        REDIS_URL: "redis://localhost:6379",
+        ACCESS_TOKEN_SECRET: "access-token-secret-at-least-32-characters",
+        PRODUCT_PREVIEW_SECRET: "product-preview-secret-at-least-32-characters",
+        WEB_ORIGIN: "https://thread.shop",
         PAYMENT_PROVIDER: "razorpay",
         RAZORPAY_MODE: "live",
       }),

@@ -19,3 +19,6 @@ test-results/
 __MACOSX/
 Thumbs.db
 
+
+.vercel
+.env*

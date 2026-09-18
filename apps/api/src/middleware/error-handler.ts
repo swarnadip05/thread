@@ -40,8 +40,9 @@ export function createErrorHandler(logger: Logger): ErrorRequestHandler {
       httpError?.code ??
       (bodyParserError === "entity.too.large" ? "REQUEST_TOO_LARGE" : "INTERNAL_SERVER_ERROR");
 
+    const reqId = (request as { requestId?: string }).requestId;
     if (statusCode >= 500) {
-      logger.error({ err: error, requestId: request.requestId }, "Unhandled request error");
+      logger.error({ err: error, requestId: reqId }, "Unhandled request error");
     }
 
     response.status(statusCode).json({
@@ -53,7 +54,7 @@ export function createErrorHandler(logger: Logger): ErrorRequestHandler {
           (statusCode === 413
             ? "Request body exceeds the allowed size."
             : "An unexpected error occurred."),
-        requestId: request.requestId,
+        requestId: reqId,
       },
     });
   };

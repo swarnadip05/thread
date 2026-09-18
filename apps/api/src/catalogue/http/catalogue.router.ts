@@ -361,6 +361,36 @@ export function createCatalogueRouter(
       response.json({ success: true, data: result });
     },
   );
+  router.post("/admin/products/import-zip", catalogueRoles, async (request, response) => {
+    let zipBuffer: Buffer;
+    if (typeof request.body?.zipBase64 === "string") {
+      zipBuffer = Buffer.from(request.body.zipBase64, "base64");
+    } else if (Buffer.isBuffer(request.body)) {
+      zipBuffer = request.body;
+    } else {
+      throw new HttpError(
+        400,
+        "MISSING_ZIP_DATA",
+        "ZIP data must be provided as base64 string or raw buffer.",
+      );
+    }
+    const result = await service.importZipInventory(
+      zipBuffer,
+      request.auth!.userId,
+      context(request),
+    );
+    response.json({ success: true, data: result });
+  });
+  router.post("/admin/products/auto-seed-100", catalogueRoles, async (request, response) => {
+    const { create100InventoryZipBuffer } = await import("../zip-importer.js");
+    const zipBuffer = await create100InventoryZipBuffer();
+    const result = await service.importZipInventory(
+      zipBuffer,
+      request.auth!.userId,
+      context(request),
+    );
+    response.json({ success: true, data: result });
+  });
   router.post(
     "/admin/products/bulk",
     catalogueRoles,

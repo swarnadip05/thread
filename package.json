@@ -10,6 +10,9 @@
   },
   "scripts": {
     "setup:local": "node scripts/setup-local-env.mjs",
+    "inventory:generate-zip": "tsx scripts/generate-inventory-zip.ts",
+    "inventory:import-zip": "tsx scripts/import-zip-inventory.ts",
+    "inventory:seed": "tsx scripts/seed-100-inventory.ts",
     "assets:prepare": "tsx scripts/prepare-client-assets.ts && tsx scripts/build-asset-manifest.ts",
     "assets:audit": "tsx scripts/build-asset-manifest.ts",
     "seed:products": "tsx scripts/seed-products.ts",

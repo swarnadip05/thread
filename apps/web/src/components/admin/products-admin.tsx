@@ -74,6 +74,7 @@ export function ProductsAdmin() {
     setPage(1);
     setSearch(String(new FormData(event.currentTarget).get("search") ?? ""));
   }
+
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-4">

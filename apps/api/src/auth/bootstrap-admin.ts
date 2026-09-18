@@ -49,6 +49,6 @@ export async function bootstrapAdmin(
       },
       { upsert: true, session },
     );
-    return "created";
+    return "created" as const;
   });
 }
