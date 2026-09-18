@@ -66,7 +66,7 @@ const homepageImageSchema = new Schema<HomepageImageRecord>(
     height: { type: Number, required: true, min: 300, max: 12_000 },
     format: { type: String, enum: ["jpg", "jpeg", "png", "webp", "avif"] },
     mimeType: { type: String, enum: ["image/jpeg", "image/png", "image/webp", "image/avif"] },
-    bytes: { type: Number, min: 1, max: 15_000_000 },
+    bytes: { type: Number, min: 1, max: 50_000_000 },
     alt: { type: String, required: true, trim: true, maxlength: 240 },
   },
   { _id: false, strict: "throw" },

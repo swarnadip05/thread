@@ -399,8 +399,14 @@ export function createCatalogueRouter(
     response.json({ success: true, data: result });
   });
 
-  // ── Batch photo upload wizard ────────────────────────────────────────────────
-  const uploadMany = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
+  const uploadMany = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+      fileSize: 50 * 1024 * 1024,
+      fieldSize: 20 * 1024 * 1024,
+      files: 500,
+    },
+  });
   router.post(
     "/admin/products/batch-upload",
     catalogueRoles,

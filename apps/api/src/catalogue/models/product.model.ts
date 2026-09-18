@@ -50,7 +50,7 @@ const mediaSchema = new Schema<ProductMedia>(
       enum: ["image/jpeg", "image/png", "image/webp", "image/avif"],
       required: true,
     },
-    bytes: { type: Number, required: true, min: 1, max: 15_000_000 },
+    bytes: { type: Number, required: true, min: 1, max: 50_000_000 },
     alt: { type: String, required: true, trim: true, maxlength: 240 },
     sortOrder: { type: Number, required: true, min: 0 },
     primary: { type: Boolean, required: true, default: false },

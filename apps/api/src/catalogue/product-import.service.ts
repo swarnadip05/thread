@@ -215,10 +215,10 @@ const DEFAULT_CARE = [
  * recursive archive attacks, and memory exhaustion.
  */
 const ZIP_SECURITY = {
-  MAX_ENTRIES: 2_000, // Maximum individual files allowed in one archive
-  MAX_TOTAL_UNCOMPRESSED_BYTES: 250 * 1024 * 1024, // 250 MB total decompressed ceiling
-  MAX_SINGLE_IMAGE_BYTES: 25 * 1024 * 1024, // 25 MB max per decompressed image
-  MAX_SPREADSHEET_BYTES: 30 * 1024 * 1024, // 30 MB max uncompressed spreadsheet
+  MAX_ENTRIES: 5_000, // Maximum individual files allowed in one archive
+  MAX_TOTAL_UNCOMPRESSED_BYTES: 500 * 1024 * 1024, // 500 MB total decompressed ceiling
+  MAX_SINGLE_IMAGE_BYTES: 50 * 1024 * 1024, // 50 MB max per decompressed image
+  MAX_SPREADSHEET_BYTES: 50 * 1024 * 1024, // 50 MB max uncompressed spreadsheet
   MAX_COMPRESSION_RATIO: 50, // Decompression ratio threshold (e.g. 1MB -> 50MB)
   MIN_COMPRESSED_BYTES_FOR_RATIO_CHECK: 100 * 1024, // Only check ratio if file is >= 100KB to avoid false positives on empty/tiny files
 };

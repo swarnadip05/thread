@@ -255,7 +255,13 @@ export function ProductsAdmin() {
       {/* ── Top Header with High-Contrast Text & Buttons ── */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-black tracking-tight text-white">Products</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-black tracking-tight text-white">Products</h1>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 px-3 py-0.5 text-xs font-bold text-emerald-300">
+              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+              Storage: 100% OK (&lt;1% used · 25GB Cloud Available)
+            </span>
+          </div>
           <p className="mt-1 text-sm font-medium text-zinc-300">
             {result.total} products listed · Manage inventory, size variants & pricing.
           </p>

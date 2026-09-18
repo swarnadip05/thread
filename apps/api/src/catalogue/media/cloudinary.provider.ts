@@ -98,7 +98,7 @@ export class CloudinaryMediaProvider implements MediaProvider {
       signedParameters: parameters,
       constraints: {
         allowedFormats: ["jpg", "jpeg", "png", "webp", "avif"],
-        maxBytes: 15_000_000,
+        maxBytes: 50_000_000,
         minWidth: 300,
         minHeight: 300,
         svgAllowed: false,
