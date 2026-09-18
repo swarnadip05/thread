@@ -10,6 +10,9 @@
   },
   "scripts": {
     "setup:local": "node scripts/setup-local-env.mjs",
+    "inventory:generate-zip": "tsx scripts/generate-inventory-zip.ts",
+    "inventory:import-zip": "tsx scripts/import-zip-inventory.ts",
+    "inventory:seed": "tsx scripts/seed-100-inventory.ts",
     "assets:prepare": "tsx scripts/prepare-client-assets.ts && tsx scripts/build-asset-manifest.ts",
     "assets:audit": "tsx scripts/build-asset-manifest.ts",
     "dev": "turbo run dev",
@@ -30,6 +33,7 @@
     "@playwright/test": "1.62.0",
     "@types/node": "26.1.1",
     "eslint": "9.39.5",
+    "jszip": "^3.10.1",
     "prettier": "3.9.5",
     "turbo": "2.10.5",
     "typescript": "6.0.3",

@@ -18,6 +18,8 @@ import type { AdminProductListInput, CatalogueRepository } from "./catalogue.typ
 import type { ProductPreviewTokenService } from "./security/preview-token.js";
 import type { CommerceJobQueue } from "../notifications/jobs/commerce-job.queue.js";
 import { PublicCatalogueCache } from "./public-catalogue-cache.js";
+import { parseInventoryZip } from "./zip-importer.js";
+import { CategoryModel } from "../models/category.model.js";
 
 const richTextOptions: sanitizeHtml.IOptions = {
   allowedTags: ["p", "h2", "h3", "h4", "ul", "ol", "li", "strong", "em", "br", "a", "blockquote"],
@@ -385,6 +387,97 @@ export class CatalogueService {
         });
     });
     return { validRows, errors };
+  }
+  async importZipInventory(
+    zipBuffer: Buffer,
+    actorId: string,
+    context: AuthContext,
+  ): Promise<{ importedCount: number; variantCount: number; categories: string[]; errors: string[] }> {
+    const { products, summary } = await parseInventoryZip(zipBuffer);
+    let importedCount = 0;
+    let variantCount = 0;
+    const errors: string[] = [];
+
+    const categoryMap = new Map<string, string>();
+    const existingCategories = await CategoryModel.find({}).lean();
+    existingCategories.forEach((cat) => categoryMap.set(cat.slug, cat._id.toString()));
+
+    for (const item of products) {
+      try {
+        let categoryId = categoryMap.get(item.categorySlug);
+        if (!categoryId) {
+          const formattedName = item.categorySlug
+            .split("-")
+            .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+            .join(" ");
+          const newCategory = await CategoryModel.create({
+            name: formattedName,
+            slug: item.categorySlug,
+            audience: item.audience,
+            active: true,
+            sortOrder: 50,
+          });
+          categoryId = newCategory._id.toString();
+          categoryMap.set(item.categorySlug, categoryId);
+        }
+
+        const productWrite = {
+          title: item.title,
+          slug: item.slug,
+          shortDescription: item.shortDescription,
+          descriptionHtml: item.descriptionHtml,
+          categoryIds: [categoryId],
+          collectionIds: [],
+          audience: item.audience,
+          brand: item.brand,
+          fit: item.fit,
+          material: item.material ?? null,
+          care: item.care,
+          tags: item.tags,
+          status: item.status,
+          featured: item.featured,
+          seo: { noIndex: false },
+          variants: item.variants.map((v) => ({
+            sku: v.sku,
+            colour: v.colour,
+            size: v.size,
+            attributes: v.attributes,
+            mrpPaise: v.mrpPaise,
+            salePricePaise: v.salePricePaise,
+            taxRateBps: v.taxRateBps,
+            hsn: v.hsn,
+            weightGrams: v.weightGrams,
+            status: v.status,
+          })),
+        };
+
+        const createdProduct = await this.create(productWrite, actorId, context);
+
+        if (item.images.length > 0) {
+          for (const img of item.images) {
+            await this.repository.attachMedia(createdProduct.id, img);
+          }
+        }
+
+        importedCount += 1;
+        variantCount += item.variants.length;
+      } catch (err) {
+        errors.push(`Product '${item.title}': ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+
+    await this.audit("catalogue.inventory_zip_imported", actorId, "bulk_zip", context, {
+      importedCount,
+      variantCount,
+    });
+
+    this.publicCache.invalidate();
+    return {
+      importedCount,
+      variantCount,
+      categories: summary.categoriesFound,
+      errors,
+    };
   }
   private async changeStatus(
     id: string,

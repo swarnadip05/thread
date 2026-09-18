@@ -65,6 +65,11 @@ function parsePayments(
   const keySecret = environment[`${prefix}_KEY_SECRET`]?.trim();
   const webhookSecret = environment[`${prefix}_WEBHOOK_SECRET`]?.trim();
   if (!keyId || !keySecret || !webhookSecret) {
+    if (nodeEnv === "production" && mode === "live") {
+      throw new Error(
+        "RAZORPAY_LIVE_KEY_ID, RAZORPAY_LIVE_KEY_SECRET and RAZORPAY_LIVE_WEBHOOK_SECRET are required for Razorpay live payments in production.",
+      );
+    }
     return { paymentProvider: "mock" };
   }
   return {

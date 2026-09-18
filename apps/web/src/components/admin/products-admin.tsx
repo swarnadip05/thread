@@ -22,6 +22,10 @@ export function ProductsAdmin() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
+  const [zipModalOpen, setZipModalOpen] = useState(false);
+  const [zipUploading, setZipUploading] = useState(false);
+  const [zipResult, setZipResult] = useState<{ importedCount: number; variantCount: number; categories: string[]; errors?: string[] } | null>(null);
+  const [zipError, setZipError] = useState("");
   const load = useCallback(async () => {
     if (!accessToken) return;
     setLoading(true);
@@ -71,6 +75,67 @@ export function ProductsAdmin() {
     setPage(1);
     setSearch(String(new FormData(event.currentTarget).get("search") ?? ""));
   }
+
+  async function handleZipFileSelect(file: File) {
+    if (!accessToken) return;
+    setZipUploading(true);
+    setZipError("");
+    setZipResult(null);
+
+    try {
+      const reader = new FileReader();
+      const base64Data = await new Promise<string>((resolve, reject) => {
+        reader.onload = () => {
+          const result = reader.result as string;
+          resolve(result.split(",")[1] || result);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      const res = await apiRequest<{ importedCount: number; variantCount: number; categories: string[]; errors?: string[] }>(
+        "/admin/products/import-zip",
+        accessToken,
+        {
+          method: "POST",
+          body: JSON.stringify({ zipBase64: base64Data }),
+        },
+      );
+
+      setZipResult(res);
+      await load();
+    } catch (err) {
+      setZipError(err instanceof Error ? err.message : "Failed to process ZIP inventory file.");
+    } finally {
+      setZipUploading(false);
+    }
+  }
+
+  async function handleAutoSeed100() {
+    if (!accessToken) return;
+    setZipUploading(true);
+    setZipError("");
+    setZipResult(null);
+    setZipModalOpen(true);
+
+    try {
+      const res = await apiRequest<{ importedCount: number; variantCount: number; categories: string[]; errors?: string[] }>(
+        "/admin/products/auto-seed-100",
+        accessToken,
+        {
+          method: "POST",
+          body: JSON.stringify({}),
+        },
+      );
+      setZipResult(res);
+      await load();
+    } catch (err) {
+      setZipError(err instanceof Error ? err.message : "Failed to auto-generate 100 inventory products.");
+    } finally {
+      setZipUploading(false);
+    }
+  }
+
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -80,9 +145,17 @@ export function ProductsAdmin() {
             {result.total} products · Manage your THREAD catalogue.
           </p>
         </div>
-        <Button asChild>
-          <Link href="/admin/products/new">Add product</Link>
-        </Button>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button variant="outline" onClick={() => void handleAutoSeed100()} disabled={zipUploading}>
+            {zipUploading ? "Auto-Seeding 100 Products..." : "⚡ Auto-Add 100 Inventory"}
+          </Button>
+          <Button variant="outline" onClick={() => setZipModalOpen(true)}>
+            Import ZIP File
+          </Button>
+          <Button asChild>
+            <Link href="/admin/products/new">Add product</Link>
+          </Button>
+        </div>
       </div>
       <form className="mt-6 flex flex-wrap gap-3" onSubmit={searchProducts}>
         <input
@@ -204,6 +277,94 @@ export function ProductsAdmin() {
           </Button>
         </div>
       </section>
+
+      {zipModalOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-lg rounded-xl bg-paper p-6 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-ink/10 pb-4">
+              <h2 className="text-xl font-semibold">Bulk ZIP Inventory Upload</h2>
+              <button
+                className="text-muted hover:text-ink"
+                onClick={() => {
+                  setZipModalOpen(false);
+                  setZipResult(null);
+                  setZipError("");
+                }}
+                type="button"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="mt-3 text-sm text-paper/70">
+              Upload a `.zip` document containing product images and `manifest.json` (or `products.json`). Products will automatically be placed into their designated categories (**Men Topwear: T-Shirts, Oversized T-Shirts, Classic Fit T-Shirts**, **Women Oversized / Regular**, **Accessories**).
+            </p>
+
+            <div className="mt-5 rounded-lg border-2 border-dashed border-ink/20 p-6 text-center hover:border-accent">
+              <input
+                accept=".zip,application/zip"
+                className="hidden"
+                id="zip-file-input"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) void handleZipFileSelect(file);
+                }}
+                type="file"
+              />
+              <label
+                className="cursor-pointer font-medium text-accent hover:underline"
+                htmlFor="zip-file-input"
+              >
+                {zipUploading ? "Uploading & Processing ZIP..." : "Click to select .ZIP Inventory archive"}
+              </label>
+            </div>
+
+            {zipUploading ? (
+              <div className="mt-4 text-center text-sm text-muted">
+                Extracting archive, assigning categories, and saving products...
+              </div>
+            ) : null}
+
+            {zipError ? (
+              <div className="mt-4 rounded-md bg-error/10 p-3 text-sm text-error">
+                {zipError}
+              </div>
+            ) : null}
+
+            {zipResult ? (
+              <div className="mt-4 rounded-md bg-success/10 p-4 text-sm text-success">
+                <p className="font-semibold">Import Complete!</p>
+                <ul className="mt-2 list-disc pl-5 space-y-1">
+                  <li>{zipResult.importedCount} Products Imported</li>
+                  <li>{zipResult.variantCount} Product Variants Created</li>
+                  <li>Designated Categories: {zipResult.categories.join(", ")}</li>
+                </ul>
+                {zipResult.errors?.length ? (
+                  <div className="mt-2 text-xs text-error">
+                    <p className="font-medium">Warnings:</p>
+                    {zipResult.errors.map((err, i) => (
+                      <p key={i}>{err}</p>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
+            <div className="mt-6 flex justify-end gap-3 border-t border-ink/10 pt-4">
+              <Button
+                onClick={() => {
+                  setZipModalOpen(false);
+                  setZipResult(null);
+                  setZipError("");
+                }}
+                variant="outline"
+              >
+                Done
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
