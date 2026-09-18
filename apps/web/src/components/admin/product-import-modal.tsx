@@ -12,8 +12,11 @@ import {
   X,
 } from "lucide-react";
 import React, { useRef, useState } from "react";
-import { apiRequest } from "@/auth/auth-client";
 import { useAuth } from "@/auth/auth-provider";
+
+// POST large files (ZIPs with photos) directly to the Render backend to bypass
+// the Vercel serverless 4.5 MB request body limit on the /api/:path* rewrite proxy.
+const DIRECT_API_URL = "https://thread-sfe5.onrender.com/api/v1";
 
 interface ImportPreviewData {
   totalProducts: number;
@@ -113,38 +116,29 @@ export function ProductImportModal({ isOpen, onClose, onSuccess }: ProductImport
     }
   }
 
-  async function fileToBase64(f: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const result = reader.result as string;
-        // data:<mime>;base64,<data> — strip the prefix
-        resolve(result.includes(",") ? (result.split(",")[1] ?? result) : result);
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(f);
-    });
-  }
-
   async function handleInspectFile() {
     if (!file || !accessToken) return;
     setLoading(true);
     setError("");
 
     try {
-      const fileBase64 = await fileToBase64(file);
+      // Send directly to Render to bypass Vercel's 4.5 MB proxy cap
+      const formData = new FormData();
+      formData.append("file", file);
 
-      const data = await apiRequest<ImportPreviewData>(
-        "/admin/products/import-preview",
-        accessToken,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ fileBase64, filename: file.name }),
-        },
-      );
+      const res = await fetch(`${DIRECT_API_URL}/admin/products/import-preview`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: formData,
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
+        throw new Error(body?.error?.message ?? `Server error ${res.status}`);
+      }
+      const json = (await res.json()) as { success: boolean; data: ImportPreviewData };
+      if (!json.success) throw new Error("Unexpected server response");
 
-      setPreview(data);
+      setPreview(json.data);
       setStep("preview");
     } catch (err: unknown) {
       setError(
@@ -164,15 +158,23 @@ export function ProductImportModal({ isOpen, onClose, onSuccess }: ProductImport
     setStep("executing");
 
     try {
-      const fileBase64 = await fileToBase64(file);
+      // Send directly to Render to bypass Vercel's 4.5 MB proxy cap
+      const formData = new FormData();
+      formData.append("file", file);
 
-      const data = await apiRequest<ImportExecutionData>("/admin/products/import", accessToken, {
+      const res = await fetch(`${DIRECT_API_URL}/admin/products/import`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fileBase64, filename: file.name }),
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: formData,
       });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
+        throw new Error(body?.error?.message ?? `Server error ${res.status}`);
+      }
+      const json = (await res.json()) as { success: boolean; data: ImportExecutionData };
+      if (!json.success) throw new Error("Unexpected server response");
 
-      setResult(data);
+      setResult(json.data);
       setStep("complete");
       onSuccess();
     } catch (err: unknown) {

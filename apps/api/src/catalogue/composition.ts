@@ -29,7 +29,11 @@ export function composeCatalogue(
     new ProductPreviewTokenService(config.productPreviewSecret),
     jobs,
   );
-  const importService = new ProductImportService(audits);
+  const importService = new ProductImportService(
+    audits,
+    config.cloudinary ? (media as CloudinaryMediaProvider) : undefined,
+  );
+
   return createCatalogueRouter(
     service,
     new ReviewService(

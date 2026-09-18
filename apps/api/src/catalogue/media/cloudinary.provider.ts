@@ -137,6 +137,75 @@ export class CloudinaryMediaProvider implements MediaProvider {
       return false;
     }
   }
+  /**
+   * Uploads an image buffer directly to Cloudinary from the server side.
+   * Used during bulk ZIP import to persist product photos to cloud storage.
+   */
+  async uploadBuffer(
+    buffer: Buffer,
+    filename: string,
+    folder?: string,
+  ): Promise<{
+    publicId: string;
+    secureUrl: string;
+    format: string;
+    mimeType: string;
+    bytes: number;
+    width: number;
+    height: number;
+  }> {
+    const targetFolder = folder ?? this.config.folder;
+    const timestamp = Math.floor(Date.now() / 1000);
+    const publicId = `${targetFolder}/${Date.now()}-${filename.replace(/[^a-zA-Z0-9._-]/g, "_").replace(/\.[^.]+$/, "")}`;
+    const parameters = { folder: targetFolder, public_id: publicId, timestamp };
+    const signature = this.sign(parameters);
+
+    const form = new FormData();
+    form.append("file", new Blob([new Uint8Array(buffer)]), filename);
+    form.append("api_key", this.config.apiKey);
+    form.append("timestamp", String(timestamp));
+    form.append("folder", targetFolder);
+    form.append("public_id", publicId);
+    form.append("signature", signature);
+
+    const response = await fetch(
+      `https://api.cloudinary.com/v1_1/${this.config.cloudName}/image/upload`,
+      { method: "POST", body: form },
+    );
+
+    if (!response.ok) {
+      const text = await response.text().catch(() => "unknown error");
+      throw new Error(`Cloudinary upload failed (${response.status}): ${text}`);
+    }
+
+    const result = (await response.json()) as {
+      public_id: string;
+      secure_url: string;
+      format: string;
+      bytes: number;
+      width: number;
+      height: number;
+    };
+
+    const fmt = result.format?.toLowerCase() ?? "jpg";
+    const mimeMap: Record<string, string> = {
+      jpg: "image/jpeg",
+      jpeg: "image/jpeg",
+      png: "image/png",
+      webp: "image/webp",
+      avif: "image/avif",
+    };
+
+    return {
+      publicId: result.public_id,
+      secureUrl: result.secure_url,
+      format: fmt,
+      mimeType: mimeMap[fmt] ?? "image/jpeg",
+      bytes: result.bytes,
+      width: result.width ?? 1000,
+      height: result.height ?? 1000,
+    };
+  }
   async delete(publicId: string): Promise<void> {
     const timestamp = Math.floor(Date.now() / 1000);
     const parameters = { public_id: publicId, timestamp };

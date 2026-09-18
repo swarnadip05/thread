@@ -10,6 +10,7 @@ import { ProductModel, type ProductMedia } from "./models/product.model.js";
 import { ProductVariantModel } from "./models/product-variant.model.js";
 import { ShippingMethodModel } from "../checkout/models/shipping-method.model.js";
 import type { AuditRepository } from "../auth/repositories/audit.repository.js";
+import type { CloudinaryMediaProvider } from "./media/cloudinary.provider.js";
 
 export class ProductImportError extends Error {
   constructor(
@@ -221,7 +222,10 @@ const ZIP_SECURITY = {
 };
 
 export class ProductImportService {
-  constructor(private readonly audits?: AuditRepository) {}
+  constructor(
+    private readonly audits?: AuditRepository,
+    private readonly cloudinary?: CloudinaryMediaProvider,
+  ) {}
 
   /**
    * Intelligently classifies audience and category based on full text & description.
@@ -834,39 +838,63 @@ export class ProductImportService {
       throw new ProductImportError("EMPTY_FILE", "File contains 0 product records to import.");
     }
 
-    // Save extracted images to local public directory if any
+    // Upload extracted images: Cloudinary in production, local filesystem as fallback for dev
     const imageMap = new Map<string, ProductMedia>();
     if (extractedImages.length > 0) {
-      const uploadDir = path.resolve(process.cwd(), "apps/web/public/uploads/products");
-      if (!fs.existsSync(uploadDir)) {
-        fs.mkdirSync(uploadDir, { recursive: true });
-      }
+      if (this.cloudinary) {
+        // Production path: upload each image buffer directly to Cloudinary
+        for (let i = 0; i < extractedImages.length; i++) {
+          const img = extractedImages[i]!;
+          try {
+            const uploaded = await this.cloudinary.uploadBuffer(img.buffer, img.filename);
+            const mediaObj: ProductMedia = {
+              publicId: uploaded.publicId,
+              secureUrl: uploaded.secureUrl,
+              width: uploaded.width,
+              height: uploaded.height,
+              format: uploaded.format as ProductMedia["format"],
+              mimeType: uploaded.mimeType as ProductMedia["mimeType"],
+              bytes: uploaded.bytes,
+              alt: img.filename,
+              sortOrder: i,
+              primary: i === 0,
+            };
 
-      for (let i = 0; i < extractedImages.length; i++) {
-        const img = extractedImages[i]!;
-        const safeName = `${Date.now()}-${img.filename.replace(/[^\w.-]/g, "_")}`;
-        const filePath = path.join(uploadDir, safeName);
-        fs.writeFileSync(filePath, img.buffer);
-
-        const isJpg = safeName.endsWith(".jpg") || safeName.endsWith(".jpeg");
-        const isPng = safeName.endsWith(".png");
-        const format = isJpg ? "jpg" : isPng ? "png" : "webp";
-        const mimeType = isJpg ? "image/jpeg" : isPng ? "image/png" : "image/webp";
-
-        const mediaObj: ProductMedia = {
-          publicId: `uploads/products/${safeName}`,
-          secureUrl: `/uploads/products/${safeName}`,
-          width: 1000,
-          height: 1000,
-          format,
-          mimeType,
-          bytes: img.buffer.length,
-          alt: img.filename,
-          sortOrder: i,
-          primary: i === 0,
-        };
-
-        imageMap.set(img.filename.toLowerCase(), mediaObj);
+            imageMap.set(img.filename.toLowerCase(), mediaObj);
+          } catch {
+            // Non-fatal: log and continue — product is created, image upload failed
+            // The product will appear without a photo rather than the whole import failing
+          }
+        }
+      } else {
+        // Development / local fallback: save to local public directory
+        const uploadDir = path.resolve(process.cwd(), "apps/web/public/uploads/products");
+        if (!fs.existsSync(uploadDir)) {
+          fs.mkdirSync(uploadDir, { recursive: true });
+        }
+        for (let i = 0; i < extractedImages.length; i++) {
+          const img = extractedImages[i]!;
+          const safeName = `${Date.now()}-${img.filename.replace(/[^\w.-]/g, "_")}`;
+          const filePath = path.join(uploadDir, safeName);
+          fs.writeFileSync(filePath, img.buffer);
+          const isJpg = safeName.endsWith(".jpg") || safeName.endsWith(".jpeg");
+          const isPng = safeName.endsWith(".png");
+          const format = isJpg ? "jpg" : isPng ? "png" : "webp";
+          const mimeType = isJpg ? "image/jpeg" : isPng ? "image/png" : "image/webp";
+          const mediaObj: ProductMedia = {
+            publicId: `uploads/products/${safeName}`,
+            secureUrl: `/uploads/products/${safeName}`,
+            width: 1000,
+            height: 1000,
+            format,
+            mimeType,
+            bytes: img.buffer.length,
+            alt: img.filename,
+            sortOrder: i,
+            primary: i === 0,
+          };
+          imageMap.set(img.filename.toLowerCase(), mediaObj);
+        }
       }
     }
 
