@@ -416,14 +416,14 @@ export function CheckoutPage({ gstin }: { gstin: string }) {
                   <div className="flex items-center justify-between">
                     <span className="flex items-center gap-2 font-semibold text-sm">
                       <CreditCard aria-hidden="true" className="size-4 text-ink" />
-                      Online Payment (Instant UPI / Cards / NetBanking)
+                      Online Payment (Snap Cart Razorpay Gateway)
                     </span>
                     <span className="rounded bg-success/15 px-2 py-0.5 text-[0.68rem] font-bold uppercase tracking-wider text-success">
                       Recommended
                     </span>
                   </div>
                   <p className="mt-1 text-xs text-muted">
-                    Instant order confirmation via Google Pay, PhonePe, Paytm, BHIM UPI, Cards or NetBanking.
+                    Merchant: <strong>Snap Cart</strong> (MID: TcQzLflfwHCkgu) • Instant UPI (GPay, PhonePe, Paytm), Cards, NetBanking & Apple Pay.
                   </p>
                   <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-[0.7rem] font-medium text-charcoal/80">
                     <span className="rounded border border-ink/10 bg-paper px-2 py-0.5 font-bold text-success">UPI</span>
@@ -431,6 +431,7 @@ export function CheckoutPage({ gstin }: { gstin: string }) {
                     <span className="rounded border border-ink/10 bg-paper px-2 py-0.5">PhonePe</span>
                     <span className="rounded border border-ink/10 bg-paper px-2 py-0.5">Paytm</span>
                     <span className="rounded border border-ink/10 bg-paper px-2 py-0.5">RuPay / Visa / Mastercard</span>
+                    <span className="rounded border border-ink/10 bg-paper px-2 py-0.5">Apple Pay</span>
                   </div>
                 </div>
               </label>

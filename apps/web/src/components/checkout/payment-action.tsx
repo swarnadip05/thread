@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import type { CheckoutSessionDto, PaymentCheckoutDto, PaymentStatusDto } from "@thread/types";
 import { Button } from "@thread/ui";
-import { CreditCard, LoaderCircle, ShieldCheck } from "lucide-react";
+import { CreditCard, ExternalLink, LoaderCircle, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 
 import { apiRequest } from "@/auth/auth-client";
@@ -87,30 +87,70 @@ export function PaymentAction({
   };
 
   return (
-    <section className="rounded-lg border border-success/20 bg-success/5 p-5">
-      <div className="flex items-start gap-3">
-        <ShieldCheck aria-hidden="true" className="mt-0.5 size-5 text-success" />
-        <div>
-          <h2 className="font-semibold">Pay securely with Razorpay</h2>
-          <p className="mt-1 text-sm text-muted">
-            Available UPI, QR and card methods are controlled by the merchant account. THREAD never
-            receives card details, CVV or UPI PINs.
-          </p>
+    <section className="rounded-lg border border-gold/40 bg-paper p-5 shadow-subtle">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <div className="grid size-10 place-items-center rounded-lg bg-ink text-gold font-bold text-sm">
+            SC
+          </div>
+          <div>
+            <h2 className="font-semibold text-ink">Snap Cart Razorpay Gateway</h2>
+            <p className="text-xs text-muted">
+              Merchant: <strong>Snap Cart</strong> • MID: <code className="font-mono text-xs bg-ink/5 px-1 rounded">TcQzLflfwHCkgu</code>
+            </p>
+          </div>
         </div>
+        <span className="inline-flex items-center gap-1 rounded-full bg-success/15 px-2.5 py-0.5 text-xs font-semibold text-success">
+          <ShieldCheck aria-hidden="true" className="size-3.5" /> Verified
+        </span>
       </div>
-      <Button className="mt-5 w-full font-semibold" disabled={busy} onClick={() => void pay()} size="lg" variant="gold">
-        {busy ? (
-          <LoaderCircle
-            aria-hidden="true"
-            className="size-5 animate-spin motion-reduce:animate-none"
-          />
-        ) : (
-          <CreditCard aria-hidden="true" className="size-5" />
-        )}
-        {busy
-          ? "Preparing secure payment…"
-          : `Pay Now • ₹${(session.totals.totalPaise / 100).toLocaleString("en-IN")}`}
-      </Button>
+
+      <div className="mt-3.5 flex flex-wrap items-center gap-1.5 text-xs text-charcoal/80">
+        <span className="rounded border border-ink/10 bg-ivory px-2 py-1 font-semibold text-success">UPI</span>
+        <span className="rounded border border-ink/10 bg-ivory px-2 py-1">Google Pay</span>
+        <span className="rounded border border-ink/10 bg-ivory px-2 py-1">PhonePe</span>
+        <span className="rounded border border-ink/10 bg-ivory px-2 py-1">Paytm</span>
+        <span className="rounded border border-ink/10 bg-ivory px-2 py-1">Cards</span>
+        <span className="rounded border border-ink/10 bg-ivory px-2 py-1">NetBanking</span>
+        <span className="rounded border border-ink/10 bg-ivory px-2 py-1">Apple Pay</span>
+      </div>
+
+      <p className="mt-3 text-xs text-muted">
+        Your payment is encrypted and processed securely by Razorpay. THREAD never stores your card number, CVV or UPI PIN.
+      </p>
+
+      <div className="mt-5 flex flex-col sm:flex-row gap-3">
+        <Button
+          className="flex-1 font-semibold"
+          disabled={busy}
+          onClick={() => void pay()}
+          size="lg"
+          variant="gold"
+        >
+          {busy ? (
+            <LoaderCircle
+              aria-hidden="true"
+              className="size-5 animate-spin motion-reduce:animate-none"
+            />
+          ) : (
+            <CreditCard aria-hidden="true" className="size-5" />
+          )}
+          {busy
+            ? "Preparing secure payment…"
+            : `Pay Now • ₹${(session.totals.totalPaise / 100).toLocaleString("en-IN")}`}
+        </Button>
+
+        <a
+          href="https://razorpay.me/@threadstore323"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center justify-center gap-2 rounded-md border border-ink/20 bg-paper px-4 py-3 text-sm font-semibold text-ink hover:bg-ivory transition-colors"
+        >
+          <ExternalLink aria-hidden="true" className="size-4" />
+          Pay on razorpay.me/@threadstore323
+        </a>
+      </div>
+
       {message ? (
         <p aria-live="polite" className="mt-3 text-sm text-muted">
           {message}

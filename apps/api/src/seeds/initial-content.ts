@@ -13,9 +13,9 @@ export const initialBusinessSettings = {
   postalCode: "700159",
   state: "WEST BENGAL",
   country: "India",
-  phone: "+91 9073661067",
-  whatsappNumber: "919073661067",
-  email: "threadfashion.shop@gmail.com",
+  phone: "+91 6289332132",
+  whatsappNumber: "916289332132",
+  email: "snapcart.kolkata@gmail.com",
   gstin: "19FCSPM9252D1ZZ",
   foundedYear: 2025,
 } as const;
