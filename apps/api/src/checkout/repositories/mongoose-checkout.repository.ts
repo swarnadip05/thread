@@ -911,6 +911,15 @@ export class MongooseCheckoutRepository implements CheckoutRepository {
   }): Promise<OrderDto> {
     const existing = await OrderModel.findOne({ checkoutSessionId: input.sessionId }).lean();
     if (existing && existing.status !== "pending_payment") return orderDto(existing);
+
+    // Ensure collections exist before transaction to prevent "Cannot create namespace" error
+    await Promise.all([
+      OrderSequenceModel.createCollection().catch(() => {}),
+      OrderModel.createCollection().catch(() => {}),
+      PaymentRecordModel.createCollection().catch(() => {}),
+      InventoryMovementModel.createCollection().catch(() => {}),
+    ]);
+
     const dbSession = await mongoose.startSession();
     try {
       let output: OrderDto | null = null;

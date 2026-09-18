@@ -5,7 +5,7 @@ import type { StoredCartLine } from "@/checkout/cart-storage";
 
 export function CheckoutSummary({
   cart,
-  deliveryPaise = 3000,
+  deliveryPaise = 0,
   gstin,
   session,
   paymentMethod = "payment_placeholder",
@@ -105,7 +105,11 @@ export function CheckoutSummary({
             <div className="flex justify-between">
               <dt className="text-muted">Delivery</dt>
               <dd className="text-muted">
-                <Price amount={deliveryPaise} className="text-sm" />
+                {deliveryPaise === 0 ? (
+                  <span className="text-sm font-medium text-success">Free</span>
+                ) : (
+                  <Price amount={deliveryPaise} className="text-sm" />
+                )}
               </dd>
             </div>
             {/* Estimated tax */}
@@ -133,7 +137,7 @@ export function CheckoutSummary({
 
       {!session ? (
         <p className="mt-4 text-xs leading-5 text-muted">
-          Estimated total includes ₹30 delivery and {isCod ? "5% COD" : "3%"} service tax.
+          Estimated total includes delivery and {isCod ? "5% COD" : "3%"} service tax.
           Final amount is confirmed when stock is reserved.
         </p>
       ) : null}

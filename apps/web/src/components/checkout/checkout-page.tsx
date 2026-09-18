@@ -29,8 +29,6 @@ import { CheckoutSummary } from "./checkout-summary";
 import { PaymentAction } from "./payment-action";
 import { ReservationTimer } from "./reservation-timer";
 
-const DELIVERY_PAISE = 3000; // ₹30 standard delivery
-
 export function CheckoutPage({ gstin }: { gstin: string }) {
   const auth = useAuth();
   const [cart, setCart] = useState<StoredCartLine[]>([]);
@@ -276,7 +274,8 @@ export function CheckoutPage({ gstin }: { gstin: string }) {
     (sum, line) => sum + (line.observedUnitPricePaise ?? 0) * line.quantity,
     0,
   );
-  const estimatedShipping = DELIVERY_PAISE;
+  const selectedMethod = bootstrap?.shippingMethods.find((m) => m.id === shippingMethodId);
+  const estimatedShipping = selectedMethod?.ratePaise ?? 0;
   const taxRate = paymentMethod === "cod" ? 5 : 3;
   const estimatedTax = Math.round((cartSubtotal * taxRate) / 100);
   const estimatedTotal = cartSubtotal > 0 ? cartSubtotal + estimatedShipping + estimatedTax : 0;
