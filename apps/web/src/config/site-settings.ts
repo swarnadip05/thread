@@ -119,6 +119,11 @@ export const initialNavigation: PublicNavigationDto = {
           links: [
             { id: "women-tshirts", label: "T-Shirts", href: "/category/t-shirts?audience=women" },
             {
+              id: "women-oversized",
+              label: "Oversized T-Shirts",
+              href: "/category/oversized-t-shirts?audience=women",
+            },
+            {
               id: "women-classic",
               label: "Classic Fit T-Shirts",
               href: "/category/classic-fit-t-shirts?audience=women",

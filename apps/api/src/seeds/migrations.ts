@@ -358,6 +358,17 @@ const migrations: readonly SeedMigration[] = [
       );
     },
   },
+  {
+    version: "2026-09-25-women-oversized-navigation-v3",
+    description: "Force update navigation to ensure Women's Oversized T-Shirts link is present under Women Topwear",
+    async up(session) {
+      await SiteSettingsModel.updateOne(
+        { key: "default" },
+        { $set: { "navigation.items": initialNavigation } },
+        { session },
+      );
+    },
+  },
 ];
 
 export async function runSeedMigrations(): Promise<void> {
