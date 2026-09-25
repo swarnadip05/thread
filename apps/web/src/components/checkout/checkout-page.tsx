@@ -355,7 +355,7 @@ export function CheckoutPage({ gstin }: { gstin: string }) {
               <Link href="/men">Continue Shopping</Link>
             </Button>
             <a
-              href={`https://wa.me/916289332132?text=${encodeURIComponent(
+              href={`https://wa.me/919073661067?text=${encodeURIComponent(
                 `Hi Snap Cart, I just placed order ${order.orderNumber}. Please update me on delivery status.`,
               )}`}
               target="_blank"
@@ -651,7 +651,7 @@ export function CheckoutPage({ gstin }: { gstin: string }) {
                   Need help with your order?
                 </span>
                 <a
-                  href={`https://wa.me/916289332132?text=${encodeURIComponent(
+                  href={`https://wa.me/919073661067?text=${encodeURIComponent(
                     "Hi, I need assistance with my order on THREAD.",
                   )}`}
                   target="_blank"

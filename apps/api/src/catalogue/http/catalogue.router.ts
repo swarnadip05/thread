@@ -390,13 +390,45 @@ export function createCatalogueRouter(
   });
   router.post("/admin/products/auto-seed-100", catalogueRoles, async (request, response) => {
     const { create100InventoryZipBuffer } = await import("../zip-importer.js");
-    const zipBuffer = await create100InventoryZipBuffer();
+    const zipBuffer = await create100InventoryZipBuffer(request.body?.pricingConfig);
     const result = await service.importZipInventory(
       zipBuffer,
       request.auth!.userId,
       context(request),
     );
     response.json({ success: true, data: result });
+  });
+  router.post("/admin/products/batch-apply-pricing", catalogueRoles, async (request, response) => {
+    const { productIds, priceSM, priceLXL, priceXXL, mrp } = request.body || {};
+    if (!Array.isArray(productIds) || !productIds.length) {
+      throw new HttpError(400, "MISSING_PRODUCT_IDS", "Please select at least one product.");
+    }
+    const priceSMPaise = (Number(priceSM) || 549) * 100;
+    const priceLXLPaise = (Number(priceLXL) || 599) * 100;
+    const priceXXLPaise = (Number(priceXXL) || 649) * 100;
+    const mrpPaise = (Number(mrp) || 899) * 100;
+
+    const { ProductVariantModel } = await import("../models/product-variant.model.js");
+    let updatedVariants = 0;
+    for (const pid of productIds) {
+      const variants = await ProductVariantModel.find({ productId: pid });
+      for (const v of variants) {
+        const size = (v.size || "").toUpperCase();
+        let salePrice = priceLXLPaise;
+        if (size === "S" || size === "M") salePrice = priceSMPaise;
+        else if (size === "L" || size === "XL") salePrice = priceLXLPaise;
+        else if (size === "2XL" || size === "XXL" || size === "3XL") salePrice = priceXXLPaise;
+
+        v.mrpPaise = Math.max(mrpPaise, salePrice);
+        v.salePricePaise = salePrice;
+        await v.save();
+        updatedVariants += 1;
+      }
+    }
+    response.json({
+      success: true,
+      data: { updatedProducts: productIds.length, updatedVariants },
+    });
   });
 
   const uploadMany = multer({

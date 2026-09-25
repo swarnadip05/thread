@@ -42,6 +42,18 @@ export function ProductsAdmin() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [expandedProductIds, setExpandedProductIds] = useState<Set<string>>(new Set());
 
+  // Pricing Configuration Modal State
+  const [pricingModalOpen, setPricingModalOpen] = useState(false);
+  const [presetTier, setPresetTier] = useState("standard");
+  const [priceSM, setPriceSM] = useState(549);
+  const [priceLXL, setPriceLXL] = useState(599);
+  const [priceXXL, setPriceXXL] = useState(649);
+  const [mrp, setMrp] = useState(899);
+  const [oversizedPriceSM, setOversizedPriceSM] = useState(699);
+  const [oversizedPriceLXL, setOversizedPriceLXL] = useState(749);
+  const [oversizedPriceXXL, setOversizedPriceXXL] = useState(799);
+  const [oversizedMrp, setOversizedMrp] = useState(1099);
+
   function toggleExpand(id: string) {
     setExpandedProductIds((prev) => {
       const next = new Set(prev);
@@ -118,7 +130,114 @@ export function ProductsAdmin() {
     }
   }
 
-  // Delete selected products
+  // Handle auto-seeding 100 products with selected custom pricing rules
+  async function handleAutoSeedWithConfig() {
+    if (!accessToken) return;
+    setLoading(true);
+    setError("");
+    try {
+      const res = await apiRequest<{ importedCount: number; variantCount: number; categories: string[]; errors?: string[] }>(
+        "/admin/products/auto-seed-100",
+        accessToken,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            pricingConfig: {
+              priceSM: priceSM * 100,
+              priceLXL: priceLXL * 100,
+              priceXXL: priceXXL * 100,
+              mrp: mrp * 100,
+              oversizedPriceSM: oversizedPriceSM * 100,
+              oversizedPriceLXL: oversizedPriceLXL * 100,
+              oversizedPriceXXL: oversizedPriceXXL * 100,
+              oversizedMrp: oversizedMrp * 100,
+            },
+          }),
+        },
+      );
+      alert(`Successfully generated & listed ${res.importedCount} products (${res.variantCount} size variants) with your selected pricing!`);
+      setPricingModalOpen(false);
+      setPage(1);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to auto-seed products with pricing.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Batch apply selected pricing preset to existing selected listed products
+  async function applyPricingToSelected() {
+    if (!accessToken || selectedIds.size === 0) return;
+    setLoading(true);
+    setError("");
+    try {
+      const res = await apiRequest<{ updatedProducts: number; updatedVariants: number }>(
+        "/admin/products/batch-apply-pricing",
+        accessToken,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            productIds: Array.from(selectedIds),
+            priceSM,
+            priceLXL,
+            priceXXL,
+            mrp,
+          }),
+        },
+      );
+      alert(`Updated pricing for ${res.updatedProducts} products (${res.updatedVariants} size variants updated)!`);
+      setPricingModalOpen(false);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to apply pricing preset.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Preset Selection Change Handler
+  function handlePresetChange(presetKey: string) {
+    setPresetTier(presetKey);
+    if (presetKey === "standard") {
+      setPriceSM(549);
+      setPriceLXL(599);
+      setPriceXXL(649);
+      setMrp(899);
+      setOversizedPriceSM(699);
+      setOversizedPriceLXL(749);
+      setOversizedPriceXXL(799);
+      setOversizedMrp(1099);
+    } else if (presetKey === "budget") {
+      setPriceSM(399);
+      setPriceLXL(449);
+      setPriceXXL(499);
+      setMrp(699);
+      setOversizedPriceSM(499);
+      setOversizedPriceLXL(549);
+      setOversizedPriceXXL(599);
+      setOversizedMrp(799);
+    } else if (presetKey === "premium") {
+      setPriceSM(699);
+      setPriceLXL(749);
+      setPriceXXL(799);
+      setMrp(999);
+      setOversizedPriceSM(849);
+      setOversizedPriceLXL(899);
+      setOversizedPriceXXL(949);
+      setOversizedMrp(1299);
+    } else if (presetKey === "oversized_heavy") {
+      setPriceSM(649);
+      setPriceLXL(699);
+      setPriceXXL(749);
+      setMrp(999);
+      setOversizedPriceSM(749);
+      setOversizedPriceLXL(799);
+      setOversizedPriceXXL(849);
+    }
+  }
+
+  // Delete selected products in bulk
   async function deleteSelectedProducts() {
     if (!accessToken || selectedIds.size === 0) return;
     if (!window.confirm(`Delete all ${selectedIds.size} selected products? This cannot be undone.`)) return;
@@ -267,6 +386,13 @@ export function ProductsAdmin() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setPricingModalOpen(true)}
+            className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-emerald-500 border-2 border-emerald-400 px-5 text-sm font-black text-black shadow-md hover:bg-emerald-400 transition"
+          >
+            💰 Set Pricing Preset
+          </button>
           <Link
             href="/admin/products/upload"
             className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-amber-400 px-5 text-sm font-black text-black shadow-md hover:bg-amber-300 transition"
@@ -696,6 +822,197 @@ export function ProductsAdmin() {
           void load();
         }}
       />
+
+      {/* ── Bulk Pricing Configuration Modal ── */}
+      {pricingModalOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-2xl rounded-2xl bg-zinc-900 border-2 border-zinc-700 p-6 text-white shadow-2xl space-y-5">
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-4">
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">💰</span>
+                <div>
+                  <h2 className="text-xl font-black">Configure Bulk Pricing & Size Matrix</h2>
+                  <p className="text-xs text-zinc-400">
+                    Set default prices before listing or applying to selected products.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPricingModalOpen(false)}
+                className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-800 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Preset Selection Dropdown */}
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-amber-400 mb-1.5">
+                Quick Pricing Preset Tier
+              </label>
+              <select
+                value={presetTier}
+                onChange={(e) => handlePresetChange(e.target.value)}
+                className="w-full rounded-xl bg-zinc-800 border border-zinc-700 px-4 py-2.5 text-sm font-semibold text-white focus:border-amber-400 focus:outline-hidden"
+              >
+                <option value="standard">Standard T-Shirts (MRP ₹899 | S/M ₹549 | L/XL ₹599 | 2XL ₹649)</option>
+                <option value="budget">Budget Line (MRP ₹699 | S/M ₹399 | L/XL ₹449 | 2XL ₹499)</option>
+                <option value="premium">Premium Graphic Tees (MRP ₹999 | S/M ₹699 | L/XL ₹749 | 2XL ₹799)</option>
+                <option value="oversized_heavy">Heavyweight Oversized (MRP ₹1099 | S/M ₹749 | L/XL ₹799 | 2XL ₹849)</option>
+                <option value="custom">Custom Pricing Matrix (User Specified Below)</option>
+              </select>
+            </div>
+
+            {/* Standard T-Shirt Prices Grid */}
+            <div className="rounded-xl bg-zinc-950 p-4 border border-zinc-800 space-y-3">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-300">
+                1. Regular & Classic Fit T-Shirts Pricing Matrix
+              </h3>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <div>
+                  <label className="block text-[11px] font-bold text-zinc-400 mb-1">Base MRP (₹)</label>
+                  <input
+                    type="number"
+                    value={mrp}
+                    onChange={(e) => {
+                      setMrp(Number(e.target.value));
+                      setPresetTier("custom");
+                    }}
+                    className="w-full rounded-lg bg-zinc-900 border border-zinc-700 px-3 py-1.5 text-sm font-bold text-amber-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-zinc-400 mb-1">S / M Price (₹)</label>
+                  <input
+                    type="number"
+                    value={priceSM}
+                    onChange={(e) => {
+                      setPriceSM(Number(e.target.value));
+                      setPresetTier("custom");
+                    }}
+                    className="w-full rounded-lg bg-zinc-900 border border-zinc-700 px-3 py-1.5 text-sm font-bold text-emerald-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-zinc-400 mb-1">L / XL Price (₹)</label>
+                  <input
+                    type="number"
+                    value={priceLXL}
+                    onChange={(e) => {
+                      setPriceLXL(Number(e.target.value));
+                      setPresetTier("custom");
+                    }}
+                    className="w-full rounded-lg bg-zinc-900 border border-zinc-700 px-3 py-1.5 text-sm font-bold text-emerald-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-zinc-400 mb-1">2XL Price (₹)</label>
+                  <input
+                    type="number"
+                    value={priceXXL}
+                    onChange={(e) => {
+                      setPriceXXL(Number(e.target.value));
+                      setPresetTier("custom");
+                    }}
+                    className="w-full rounded-lg bg-zinc-900 border border-zinc-700 px-3 py-1.5 text-sm font-bold text-emerald-400"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Oversized T-Shirt Prices Grid */}
+            <div className="rounded-xl bg-zinc-950 p-4 border border-zinc-800 space-y-3">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-purple-300">
+                2. Women & Men Oversized T-Shirts Pricing Matrix
+              </h3>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <div>
+                  <label className="block text-[11px] font-bold text-zinc-400 mb-1">Oversized MRP (₹)</label>
+                  <input
+                    type="number"
+                    value={oversizedMrp}
+                    onChange={(e) => {
+                      setOversizedMrp(Number(e.target.value));
+                      setPresetTier("custom");
+                    }}
+                    className="w-full rounded-lg bg-zinc-900 border border-zinc-700 px-3 py-1.5 text-sm font-bold text-amber-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-zinc-400 mb-1">S / M Price (₹)</label>
+                  <input
+                    type="number"
+                    value={oversizedPriceSM}
+                    onChange={(e) => {
+                      setOversizedPriceSM(Number(e.target.value));
+                      setPresetTier("custom");
+                    }}
+                    className="w-full rounded-lg bg-zinc-900 border border-zinc-700 px-3 py-1.5 text-sm font-bold text-purple-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-zinc-400 mb-1">L / XL Price (₹)</label>
+                  <input
+                    type="number"
+                    value={oversizedPriceLXL}
+                    onChange={(e) => {
+                      setOversizedPriceLXL(Number(e.target.value));
+                      setPresetTier("custom");
+                    }}
+                    className="w-full rounded-lg bg-zinc-900 border border-zinc-700 px-3 py-1.5 text-sm font-bold text-purple-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-zinc-400 mb-1">2XL Price (₹)</label>
+                  <input
+                    type="number"
+                    value={oversizedPriceXXL}
+                    onChange={(e) => {
+                      setOversizedPriceXXL(Number(e.target.value));
+                      setPresetTier("custom");
+                    }}
+                    className="w-full rounded-lg bg-zinc-900 border border-zinc-700 px-3 py-1.5 text-sm font-bold text-purple-400"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-zinc-800 pt-4">
+              <button
+                type="button"
+                onClick={() => setPricingModalOpen(false)}
+                className="rounded-xl bg-zinc-800 border border-zinc-700 px-4 py-2 text-xs font-bold text-zinc-300 hover:bg-zinc-700"
+              >
+                Cancel
+              </button>
+
+              <div className="flex flex-wrap items-center gap-3">
+                {selectedIds.size > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => void applyPricingToSelected()}
+                    disabled={loading}
+                    className="rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white shadow-md hover:bg-indigo-500 transition disabled:opacity-50"
+                  >
+                    Apply to {selectedIds.size} Selected Listed Products
+                  </button>
+                ) : null}
+
+                <button
+                  type="button"
+                  onClick={() => void handleAutoSeedWithConfig()}
+                  disabled={loading}
+                  className="rounded-xl bg-amber-400 px-5 py-2 text-xs font-black text-black shadow-md hover:bg-amber-300 transition disabled:opacity-50"
+                >
+                  ⚡ Save Pricing & Auto-List 100 Products
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

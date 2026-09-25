@@ -326,7 +326,20 @@ const sampleJpegBuffer = Buffer.from([
   0x00, 0xd2, 0xcf, 0x20, 0xff, 0xd9,
 ]);
 
-export async function create100InventoryZipBuffer(): Promise<Buffer> {
+export interface CustomPricingConfig {
+  priceSM?: number;
+  priceLXL?: number;
+  priceXXL?: number;
+  mrp?: number;
+  oversizedPriceSM?: number;
+  oversizedPriceLXL?: number;
+  oversizedPriceXXL?: number;
+  oversizedMrp?: number;
+}
+
+export async function create100InventoryZipBuffer(
+  pricingConfig?: CustomPricingConfig,
+): Promise<Buffer> {
   const zip = new JSZip();
   const adjectives = [
     "Urban",
@@ -358,40 +371,40 @@ export async function create100InventoryZipBuffer(): Promise<Buffer> {
       audience: "men" as const,
       categorySlug: "oversized-t-shirts",
       fit: "Oversized",
-      price: 69900,
-      mrp: 89900,
+      price: pricingConfig?.oversizedPriceSM || 69900,
+      mrp: pricingConfig?.oversizedMrp || 89900,
       qty: 25,
     },
     {
       audience: "men" as const,
       categorySlug: "t-shirts",
       fit: "Regular",
-      price: 54900,
-      mrp: 74900,
+      price: pricingConfig?.priceSM || 54900,
+      mrp: pricingConfig?.mrp || 74900,
       qty: 20,
     },
     {
       audience: "men" as const,
       categorySlug: "classic-fit-t-shirts",
       fit: "Classic",
-      price: 59900,
-      mrp: 79900,
+      price: pricingConfig?.priceSM || 59900,
+      mrp: pricingConfig?.mrp || 79900,
       qty: 15,
     },
     {
       audience: "women" as const,
       categorySlug: "oversized-t-shirts",
       fit: "Oversized",
-      price: 69900,
-      mrp: 89900,
+      price: pricingConfig?.oversizedPriceSM || 69900,
+      mrp: pricingConfig?.oversizedMrp || 89900,
       qty: 15,
     },
     {
       audience: "women" as const,
       categorySlug: "t-shirts",
       fit: "Regular",
-      price: 54900,
-      mrp: 74900,
+      price: pricingConfig?.priceSM || 54900,
+      mrp: pricingConfig?.mrp || 74900,
       qty: 15,
     },
     {
@@ -418,16 +431,29 @@ export async function create100InventoryZipBuffer(): Promise<Buffer> {
       zip.file(imgFilename, sampleJpegBuffer);
 
       const colors = ["Black", "White", "Navy"].slice(0, 2);
-      const sizes = ["S", "M", "L", "XL"];
+      const sizes = ["S", "M", "L", "XL", "2XL"];
+      const isOversized = group.categorySlug.includes("oversized");
+
       const variants = colors.flatMap((color) =>
-        sizes.map((size) => ({
-          sku: `${slug.toUpperCase()}-${color.slice(0, 3).toUpperCase()}-${size}`,
-          colour: color,
-          size,
-          mrpPaise: group.mrp,
-          salePricePaise: group.price,
-          availableStock: 25,
-        })),
+        sizes.map((size) => {
+          let salePrice = group.price;
+          if (size === "S" || size === "M") {
+            salePrice = isOversized ? (pricingConfig?.oversizedPriceSM || 69900) : (pricingConfig?.priceSM || 54900);
+          } else if (size === "L" || size === "XL") {
+            salePrice = isOversized ? (pricingConfig?.oversizedPriceLXL || 74900) : (pricingConfig?.priceLXL || 59900);
+          } else if (size === "2XL") {
+            salePrice = isOversized ? (pricingConfig?.oversizedPriceXXL || 79900) : (pricingConfig?.priceXXL || 64900);
+          }
+
+          return {
+            sku: `${slug.toUpperCase()}-${color.slice(0, 3).toUpperCase()}-${size}`,
+            colour: color,
+            size,
+            mrpPaise: group.mrp,
+            salePricePaise: salePrice,
+            availableStock: 25,
+          };
+        }),
       );
 
       manifest.push({
